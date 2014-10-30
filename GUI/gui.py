@@ -3,12 +3,12 @@
 class GUI:
 	
 	''' Sets up the ui '''
-	def setup():
+	def setup(self):
 		print('Setting up the ui...')
 
 	''' Displays the user interface??? '''
-	def show():
-		setup()
+	def show(self):
+		self.setup()
 		print('Showing the ui to the user...')
 
 if __name__ == '__main__':
