@@ -6,7 +6,13 @@ from P2P.p2pclient import *
 class TestPeerToPeerClass(unittest.TestCase):
   
   def setUp(self):
-    pass
+    print('running test...)
+    
+  def tearDown(self):
+    print('ending test...)
+  
+  def test_create_client(self):
+    c = P2PClient()
     
   def test_create_client_server(self):
     t = threading.Thread(target=self.start_thread)
@@ -21,9 +27,7 @@ class TestPeerToPeerClass(unittest.TestCase):
     c = P2PClient()
     c.send_message(Message.add)
     c.send_message(Message.new_transaction, s)
-    
-    c = None
-    p = None
+
     
   def start_thread(self):
     P2PServer()

@@ -5,6 +5,7 @@ from Crypto import Random
 import struct
 
 from keystore import *
+from P2P.client_manager import *
 
 class Transaction:
   ''' Base "regular" transaction '''
@@ -49,7 +50,8 @@ class Transaction:
     Broadcast this transaction in json format to the peer network
     
     """
-    print('Broadcasting transaction...')
+    p2pclient = P2PClientManager.getClient()
+    p2pclient.broadcast_transaction(self.build_struct())
     
   def hash_transaction(self):
     """ Hashes the transaction in raw format """
@@ -65,7 +67,7 @@ class Transaction:
     return self.hash.hexdigest()
     
   def build_struct(self):
-
+    
     buffer = bytearray()
     buffer.extend(struct.pack('B', len(self.input)))
     self.pack_inputs(buffer)
@@ -83,41 +85,11 @@ class Transaction:
       o.pack(buf)
     return buf
     
-  def hash_inputs(self):
-    """ Hashes all the inputs
-    
-    Returns:
-      A hash of the inputs
-    """
-    hash = SHA256.new()
-    for i in self.input:
-      hash.update(i.get_bytes())
-    return hash
-    
-  def hash_outputs(self):
-    """ Hashes all the outputs
-    
-    Returns:
-      A hash of the outputs
-    """
-    hash = SHA256.new()
-    for i in self.output:
-      hash.update(i.get_bytes())
-    return hash
-    
-  def get_input_bytes(self):
-    result = bytearray()
-    for i in self.input:
-      result += i.get_bytes()
-    return result
-    
-  def get_output_bytes(self):
-    result = bytearray()
-    for i in self.output:
-      result += i.get_bytes()
-    return result
-    
   def unpack(self, buf):
+    """ unpacks a Transaction from a buffer of bytes
+    
+    
+    """
     num_in = struct.unpack_from('B', buf)[0]
     offset = 1
     self.input = []
@@ -228,7 +200,13 @@ class Transaction:
       return buf
       
 if __name__ == '__main__':
+  import sys
+  port = sys.argv[1]
+  P2PClient.CLIENT_PORT = int(port)
+  p2pclient = P2PClientManager.getClient()
+  trans = Transaction()
   t = Transaction()
   t.add_input(Transaction.Input(100, b''))
   t.add_output(Transaction.Output(20, KeyStore.getPublicKey()))
-  t.build()
+  #t.build()
+  t.broadcast()

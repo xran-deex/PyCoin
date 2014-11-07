@@ -1,57 +1,85 @@
-#from PyCoin.TransactionManager.transaction import Transaction
-
 import socket, pickle, threading, socketserver
 from P2P.messages import Message
+from P2P.p2pserver import P2PServer
 from TransactionManager.transaction import Transaction
 from struct import *
 
 class P2PClient:
-  HOST = 'localhost'
-  PORT = 50007
-  SERVER_PORT = 50008
+  HOST = '192.168.1.2'   # hard coded IP of the peer list server (for now)
+  PORT = P2PServer.PORT  # grab the port number of the server
+  CLIENT_PORT = -1       # right now this is set prior to creating a P2PClient
   
   def __init__(self):
     print('Creating client...')
-    self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.p2pserver = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     print('Connecting to host...')
-    self.s.connect((P2PClient.HOST, P2PClient.PORT))
+    self.p2pserver.connect((P2PClient.HOST, P2PClient.PORT))
+    self.myIP = self.p2pserver.getsockname()[0] # the ip of this machine
     
   def send_message(self, message, payload=None):
     print('Sending message...')
-    self.s.sendall(message + pack('I', P2PClient.SERVER_PORT))
-    if message == Message.add:
-      self.peer_list = pickle.loads(self.s.recv(1024).strip())
+    if message == Message.ADD:
+      # if the message is add, send an 'ADD' message to the p2p server
+      self.p2pserver.sendall(message + pack('I', P2PClient.CLIENT_PORT))
+      self.peer_list = pickle.loads(self.p2pserver.recv(1024).strip())
       print('Received peer list: ', self.peer_list)
-    elif message == Message.new_transaction:
-      print('sending payload...')
-      self.s.sendall(payload)
+      
+    elif message == Message.NEW_TRANSACTION:
+      # if the message is 'NEW_TRANSACTION', send the message and payload (packed transaction) to each peer
+      for peer in self.peer_list:
+        
+        # make sure we don't send the transaction back to ourselves.
+        if peer[0] == self.myIP and peer[1] == P2PClient.CLIENT_PORT:
+          continue
+        
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        print('Connecting to peer', peer)
+        s.connect(peer)
+        s.sendall(message)
+        print('sending payload...')
+        s.sendall(payload)
+        s.close()
+  
+  def broadcast_transaction(self, t):
+    self.send_message(Message.new_transaction, t)
   
   def __del__(self):
-    self.s.sendall(b'quit')
-    self.s.close()
+    try:
+      self.p2pserver.sendall(Message.REMOVE)
+      self.p2pserver.sendall(Message.QUIT)
+    finally:
+      self.p2pserver.close()
+      P2PClient.server.shutdown()
+      print('server dying...')
+      
   
   def start_server():
     print('starting server...')
-    HOST = "localhost"
-
-    server = socketserver.TCPServer((HOST, P2PClient.SERVER_PORT), TCPHandler)
-    server.serve_forever()
+    HOST = ''     #allow connections from any ip address
+    print('Serving on: ', (HOST, P2PClient.CLIENT_PORT))
+    P2PClient.server = socketserver.TCPServer((HOST, P2PClient.CLIENT_PORT), TCPHandler)
+    print('running...')
+    P2PClient.server.serve_forever()
   
-  t = threading.Thread(target=start_server)
-  t.start()
+  def run():
+    P2PClient.t = threading.Thread(target=P2PClient.start_server)
+    P2PClient.t.start()
 
 class TCPHandler(socketserver.BaseRequestHandler):
-    def handle(self):
-      print('received transaction...')
-      message = self.request.recv(1024).strip()
+  """ Handles incoming tcp requests """
+  def handle(self):
+    print('received message from a peer...')
+    message = self.request.recv(1024).strip()
+    if message == Message.new_transaction:
+      trans = self.request.recv(1024).strip()
       t = Transaction()
-      t.unpack(message)
+      t.unpack(trans)
 
 if __name__ == '__main__':
   import sys
   from keystore import KeyStore
   port = sys.argv[1]
-  P2PClient.SERVER_PORT = int(port)
+  P2PClient.CLIENT_PORT = int(port)
   trans = Transaction()
   trans.add_input(Transaction.Input(20, b'FFFFFFFF'))
   trans.add_output(Transaction.Output(10, KeyStore.getPublicKey())) # just pay to ourselves for now
@@ -60,7 +88,7 @@ if __name__ == '__main__':
   
   c = P2PClient()
   c.send_message(Message.add)
-  c.send_message(Message.new_transaction, s)
+  c.send_message(Message.NEW_TRANSACTION, s)
   
   import time
   time.sleep(5)
@@ -70,4 +98,4 @@ if __name__ == '__main__':
   trans.add_output(Transaction.Output(55, KeyStore.getPublicKey())) # just pay to ourselves for now
   trans.add_input(Transaction.Input(4, b'FFFFFFFF'))
   s = trans.build_struct()
-  c.send_message(Message.new_transaction, s)
+  c.send_message(Message.NEW_TRANSACTION, s)

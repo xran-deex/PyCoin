@@ -1,5 +1,5 @@
 import socket, threading, pickle
-from TransactionManager.transaction import *
+#from TransactionManager.transaction import *
 from P2P.messages import Message
 from struct import *
 
@@ -9,7 +9,7 @@ class P2PServer:
   PORT = 50007              # Arbitrary non-privileged port
   
   def __init__(self):
-    self.peer_list = {}
+    self.peer_list = []
     print('Starting server...')
     self.start_server()
     
@@ -32,33 +32,49 @@ class P2PServer:
       conn.close()
       self.socket.close()
   
-  def add_peer(self, peer, val):
-    self.peer_list[peer] = val
+  def add_peer(self, peer, port):
+    self.peer_list.append((peer, port))
     
-  def deliver_peer_list(self, peer):
-    pass
+  def remove_peer(self, peer, conn):
+    toBeRemoved = (None,)
+    for p, port in self.peer_list:
+      if peer == p:
+        toBeRemoved = (p, port)
+        break
+    self.peer_list.pop(toBeRemoved)
+    self.deliver_peer_list(conn)
+    
+  def deliver_peer_list(self, conn):
+    conn.sendall(pickle.dumps(list(self.peer_list.keys())))
   
   def handle_message(self, peer, conn):
     message = conn.recv(1024).strip()
-    while message != b'':
+    while message and message[:4] != Message.QUIT:
       
       print('Received message', message)
-      if message[:3] == Message.add:
+      if message[:3] == Message.ADD:
         print(peer)
         self.add_peer(peer[1], unpack('I', message[3:])[0])
+        self.devliver_peer_list(conn)
         
-        conn.sendall(pickle.dumps(list(self.peer_list.keys())))
-      elif message[:15] == Message.new_transaction:
+      elif message[:15] == Message.NEW_TRANSACTION:
         port = message[15:]
         payload = conn.recv(1024).strip()
         self.send_to_peers(payload, port)
         
+      elif message[:6] == Message.REMOVE:
+        self.remove_peer(peer, conn)
+        
       message = conn.recv(1024).strip()
+    conn.close()
+    print('thread dying...')
+          
           
   def send_to_peers(self, payload, origin):
-    for peer, port in self.peer_list.items():
-      if port == origin:
-        continue
+    ''' broadcast a message to all peers '''
+    for peer, port in self.peer_list:
+      #if port == origin:
+       # continue
       print(peer)
       s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       s.connect(('localhost', port))
