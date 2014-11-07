@@ -41,16 +41,18 @@ class P2PClient:
         s.close()
   
   def broadcast_transaction(self, t):
-    self.send_message(Message.new_transaction, t)
+    self.send_message(Message.NEW_TRANSACTION, t)
   
   def __del__(self):
     try:
       self.p2pserver.sendall(Message.REMOVE)
+      self.p2pserver.flush()
       self.p2pserver.sendall(Message.QUIT)
     finally:
       self.p2pserver.close()
-      P2PClient.server.shutdown()
-      print('server dying...')
+      if P2PClient.server:
+        P2PClient.server.shutdown()
+        print('server dying...')
       
   
   def start_server():
@@ -70,7 +72,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
   def handle(self):
     print('received message from a peer...')
     message = self.request.recv(1024).strip()
-    if message == Message.new_transaction:
+    if message == Message.NEW_TRANSACTION:
       trans = self.request.recv(1024).strip()
       t = Transaction()
       t.unpack(trans)
