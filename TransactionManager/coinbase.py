@@ -1,4 +1,5 @@
 from transaction import Transaction
+import keystore
 
 class CoinBase(Transaction):
   ''' Derived coinbase transaction '''
@@ -6,17 +7,19 @@ class CoinBase(Transaction):
   def __init__(self):
     Transaction.__init__(self)
     print('Creating a CoinBase transaction')
+    super(CoinBase, self).add_input(Transaction.Input(20, 'FFFFFFFF'))
     
+  def add_input(self):
+    ''' coinbase transactions only have outputs. input is determined.'''
+    pass
+  
+  def add_output(self, output):
+    self.output.append(output)
 
 
 if __name__ == '__main__':
-  from input import *
-  
   
   cb = CoinBase()
-  cb.add_payee('Bob')
-  cb.add_input(Input(20, 'sig', 1))
-  cb.add_output(Output(10, 'key'))
-  cb.add_input(Input(5, 'sig', 2))
+  cb.add_output(Transaction.Output(10, keystore.KeyStore.getPublicKey()))
   cb.build()
   cb.broadcast()

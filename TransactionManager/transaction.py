@@ -2,6 +2,7 @@ from Crypto.Hash import SHA256
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from Crypto import Random
+import struct
 
 from keystore import *
 
@@ -62,15 +63,25 @@ class Transaction:
       This transaction's hash as a hex string
     """
     return self.hash.hexdigest()
-  
-  def build_raw_transaction(self):
-    import array
-    raw = bytearray()
-    raw += len(self.input).to_bytes(4, byteorder='big')
-    raw += self.hash_inputs().digest()
-    raw += len(self.output).to_bytes(4, byteorder='big')
-    raw += self.hash_outputs().digest()
-    return raw
+    
+  def build_struct(self):
+
+    buffer = bytearray()
+    buffer.extend(struct.pack('B', len(self.input)))
+    self.pack_inputs(buffer)
+    buffer.extend(struct.pack('B', len(self.output)))
+    self.pack_outputs(buffer)
+    return buffer
+    
+  def pack_inputs(self, buf):
+    for inp in self.input:
+      inp.pack(buf)
+    return buf
+    
+  def pack_outputs(self, buf):
+    for o in self.output:
+      o.pack(buf)
+    return buf
     
   def hash_inputs(self):
     """ Hashes all the inputs
@@ -94,8 +105,26 @@ class Transaction:
       hash.update(i.get_bytes())
     return hash
     
+  def get_input_bytes(self):
+    result = bytearray()
+    for i in self.input:
+      result += i.get_bytes()
+    return result
     
+  def get_output_bytes(self):
+    result = bytearray()
+    for i in self.output:
+      result += i.get_bytes()
+    return result
     
+  def unpack(self, buf):
+    num_in = struct.unpack_from('B', buf)[0]
+    offset = 1
+    self.input = []
+    for i in range(num_in):
+      self.input.append(Transaction.Input.unpack(buf, offset))
+      offset += 66
+    print(self.build())
     
   # inner class representing inputs/outputs to a transaction
   class Input:
@@ -109,8 +138,23 @@ class Transaction:
     
     _n = 0  # the input count
     
-    def __init__(self, value):
+    def unpack(buf, offset):
+      value = struct.unpack_from('B', buf, offset)[0]
+      offset += 1
+      prev = buf[offset:offset+32]
+      offset += 32
+      n = struct.unpack_from('B', buf, offset)[0]
+      offset += 1
+      signature = buf[offset:offset+32]
+      i = Transaction.Input(value, prev)
+      i.signature = signature
+      i.n = n
+      return i
+      
+    
+    def __init__(self, value, prev):
       self.value = value
+      self.prev = prev
       key = KeyStore.getPublicKey()
       # sign the input
       message = SHA256.new(str.encode('signature'))
@@ -123,15 +167,32 @@ class Transaction:
       print('input #', self.n)
       
     def __repr__(self):
-      return str(self.value) + ' ' + str(self.signature) + ' ' + str(self.n)
+      return str(self.value) + ', ' + str(self.hash_sig())
       
-    def get_bytes(self):
-      return (self.__repr__()).encode('ascii')
-      
-    def hash_sig(self):
+    def hash_sig(self, hex=True):
       hash = SHA256.new()
       hash.update(self.signature)
-      return hash.hexdigest()
+      if hex:
+        return hash.hexdigest()
+      else:
+        return hash.digest()
+    
+    def hash_prev(self, hex=True):
+      hash = SHA256.new()
+      hash.update(self.signature)
+      if hex:
+        return hash.hexdigest()
+      else:
+        return hash.digest()
+      
+    def pack(self, buf):
+      print('buf length: ', len(buf))
+      buf.extend(struct.pack('B', self.value))
+      buf.extend(self.hash_prev(hex=False))
+      buf.extend(struct.pack('B', self.n))
+      buf.extend(self.hash_sig(hex=False))
+      print('buf length: ', len(buf))
+      return buf
       
   class Output:
     """ defines an output object in a transaction
@@ -151,12 +212,23 @@ class Transaction:
       self.n = Transaction.Output._n
       
     def __repr__(self):
-        return str(self.value) + ' ' + self.hash_key()
+        return str(self.value) + ', ' + self.hash_key()
         
-    def get_bytes(self):
-      return (self.__repr__()).encode('ascii')
-        
-    def hash_key(self):
+    def hash_key(self, hex=True):
       hash = SHA256.new()
       hash.update(self.pubKey.exportKey())
-      return hash.hexdigest()
+      if hex:
+        return hash.hexdigest()
+      else:
+        return hash.digest()
+        
+    def pack(self, buf):
+      buf.extend(struct.pack('I', self.value))
+      buf.extend(self.hash_key(hex=False))
+      return buf
+      
+if __name__ == '__main__':
+  t = Transaction()
+  t.add_input(Transaction.Input(100, b''))
+  t.add_output(Transaction.Output(20, KeyStore.getPublicKey()))
+  t.build()
