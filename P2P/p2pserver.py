@@ -36,26 +36,31 @@ class P2PServer:
     self.peer_list.append((peer, port))
     
   def remove_peer(self, peer, conn):
-    toBeRemoved = (None,)
-    for p, port in self.peer_list:
-      if peer == p:
-        toBeRemoved = (p, port)
+    toBeRemoved = None
+    for p in self.peer_list:
+      print(peer, p)
+      if peer[0] == p[0]:
+        toBeRemoved = p
         break
-    self.peer_list.pop(toBeRemoved)
+    if not toBeRemoved:
+      return
+    print('Removing peer: ', p)
+    self.peer_list.remove(toBeRemoved)
+    print('Peer list: ', self.peer_list)
     self.deliver_peer_list(conn)
     
   def deliver_peer_list(self, conn):
-    conn.sendall(pickle.dumps(list(self.peer_list.keys())))
+    conn.sendall(pickle.dumps(list(self.peer_list)))
   
   def handle_message(self, peer, conn):
     message = conn.recv(1024).strip()
+    print('Received message', message)
     while message and message[:4] != Message.QUIT:
       
-      print('Received message', message)
       if message[:3] == Message.ADD:
         print(peer)
-        self.add_peer(peer[1], unpack('I', message[3:])[0])
-        self.devliver_peer_list(conn)
+        self.add_peer(peer[0], unpack('I', message[3:])[0])
+        self.deliver_peer_list(conn)
         
       elif message[:15] == Message.NEW_TRANSACTION:
         port = message[15:]
@@ -66,6 +71,7 @@ class P2PServer:
         self.remove_peer(peer, conn)
         
       message = conn.recv(1024).strip()
+      print('Received message', message)
     conn.close()
     print('thread dying...')
           
