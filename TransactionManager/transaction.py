@@ -15,6 +15,7 @@ class Transaction:
     print('Creating a regular transaction')
     self.input = []
     self.output = []
+    self.hash = None
 
   def build(self):
     ''' build a transaction
@@ -56,7 +57,7 @@ class Transaction:
   def hash_transaction(self):
     """ Hashes the transaction in raw format """
     self.hash = SHA256.new()
-    self.hash.update(self.build_raw_transaction())
+    self.hash.update(self.build_struct())
     
   def get_hash(self):
     """ Retrieves this transaction's hash
@@ -64,6 +65,8 @@ class Transaction:
     Returns:
       This transaction's hash as a hex string
     """
+    if not self.hash:
+      self.hash_transaction()
     return self.hash.hexdigest()
     
   def build_struct(self):
@@ -96,7 +99,14 @@ class Transaction:
     for i in range(num_in):
       self.input.append(Transaction.Input.unpack(buf, offset))
       offset += 66
-    print(self.build())
+    #print(self.build())
+    
+  def __repr__(self):
+    return 'Transaction:' +\
+    '\n#vin: ' + str(len(self.input)) +\
+    '\nvin[]: ' + str(self.input) +\
+    '\n#vout: ' + str(len(self.output)) +\
+    '\nvout[]: ' + str(self.output)
     
   # inner class representing inputs/outputs to a transaction
   class Input:
@@ -204,7 +214,6 @@ if __name__ == '__main__':
   port = sys.argv[1]
   P2PClient.CLIENT_PORT = int(port)
   p2pclient = P2PClientManager.getClient()
-  trans = Transaction()
   t = Transaction()
   t.add_input(Transaction.Input(100, b''))
   t.add_output(Transaction.Output(20, KeyStore.getPublicKey()))

@@ -34,11 +34,7 @@ class TestTransactionClass(unittest.TestCase):
     self.trans.add_output(Transaction.Output(10, self.key.publickey())) # just pay to ourselves for now
     self.trans.add_input(Transaction.Input(5, b'FFFFFFFF'))
     s = self.trans.build_struct()
-    c = P2PClient()
-    c.send_message(Message.add)
-    c = P2PClient()
-    c.send_message(Message.new_transaction, s)
-    self.trans.unpack(s)
+    
     self.assertIsNotNone(s)
     
 if __name__ == '__main__':

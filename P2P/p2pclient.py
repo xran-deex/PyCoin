@@ -1,19 +1,20 @@
 import socket, pickle, threading, socketserver
 from P2P.messages import Message
 from P2P.p2pserver import P2PServer
-from TransactionManager.transaction import Transaction
+#from TransactionManager.transaction import Transaction
 from struct import *
 
 class P2PClient:
   HOST = '192.168.1.2'   # hard coded IP of the peer list server (for now)
   PORT = P2PServer.PORT  # grab the port number of the server
-  CLIENT_PORT = -1       # right now this is set prior to creating a P2PClient
+  CLIENT_PORT = 65000       # right now this is set prior to creating a P2PClient
+  server = None
   
-  def __init__(self):
+  def __init__(self, host):
     print('Creating client...')
     self.p2pserver = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     print('Connecting to host...')
-    self.p2pserver.connect((P2PClient.HOST, P2PClient.PORT))
+    self.p2pserver.connect((host, P2PClient.PORT))
     self.myIP = self.p2pserver.getsockname()[0] # the ip of this machine
     
   def send_message(self, message, payload=None):
@@ -39,15 +40,18 @@ class P2PClient:
         print('sending payload...')
         s.sendall(payload)
         s.close()
+    
+    elif message == Message.REMOVE:
+      self.p2pserver.sendall(message)
   
   def broadcast_transaction(self, t):
     self.send_message(Message.NEW_TRANSACTION, t)
   
   def __del__(self):
     try:
-      self.p2pserver.sendall(Message.REMOVE)
-      self.p2pserver.flush()
       self.p2pserver.sendall(Message.QUIT)
+    except:
+      pass
     finally:
       self.p2pserver.close()
       if P2PClient.server:
@@ -58,14 +62,14 @@ class P2PClient:
   def start_server():
     print('starting server...')
     HOST = ''     #allow connections from any ip address
-    print('Serving on: ', (HOST, P2PClient.CLIENT_PORT))
+    print('Serving on: ', ('', P2PClient.CLIENT_PORT))
     P2PClient.server = socketserver.TCPServer((HOST, P2PClient.CLIENT_PORT), TCPHandler)
     print('running...')
     P2PClient.server.serve_forever()
   
-  def run():
-    P2PClient.t = threading.Thread(target=P2PClient.start_server)
-    P2PClient.t.start()
+  #def run():
+  t = threading.Thread(target=start_server)
+  t.start()
 
 class TCPHandler(socketserver.BaseRequestHandler):
   """ Handles incoming tcp requests """

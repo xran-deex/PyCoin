@@ -1,5 +1,6 @@
 from transaction import Transaction
 import keystore
+import random
 
 class CoinBase(Transaction):
   ''' Derived coinbase transaction '''
@@ -7,7 +8,14 @@ class CoinBase(Transaction):
   def __init__(self):
     Transaction.__init__(self)
     print('Creating a CoinBase transaction')
-    super(CoinBase, self).add_input(Transaction.Input(20, 'FFFFFFFF'))
+    
+    # prev trans is 0 for coinbase
+    i = Transaction.Input(20, 0)
+    # n is 2^32 -1  for coinbase
+    i.n = 2**32 - 1
+    # 32 random bits for the coinbase field
+    i.coinbase = random.getrandbits(32)
+    super(CoinBase, self).add_input(i)
     
   def add_input(self):
     ''' coinbase transactions only have outputs. input is determined.'''

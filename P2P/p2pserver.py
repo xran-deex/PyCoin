@@ -1,7 +1,9 @@
 import socket, threading, pickle
 #from TransactionManager.transaction import *
 from P2P.messages import Message
+from globals import DEBUG
 from struct import *
+
 
 class P2PServer:
   
@@ -14,6 +16,7 @@ class P2PServer:
     self.start_server()
     
   def start_server(self):
+    self.run_server = True
     self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     self.socket.bind((P2PServer.HOST, P2PServer.PORT))
     self.socket.listen(2)
@@ -21,7 +24,7 @@ class P2PServer:
     conn, addr = self.socket.accept()
     print('Connected by', addr)
     try:
-      while 1:
+      while self.run_server:
           t = threading.Thread(target=self.handle_message, args=(addr, conn))
           t.start()
           print('waiting...')
@@ -31,6 +34,13 @@ class P2PServer:
     finally:
       conn.close()
       self.socket.close()
+      
+  def shutdown_server(self):
+    try:
+      self.socket.close()
+    except:
+      self.run_server = False
+    print('server dead')
   
   def add_peer(self, peer, port):
     self.peer_list.append((peer, port))
@@ -47,7 +57,11 @@ class P2PServer:
     print('Removing peer: ', p)
     self.peer_list.remove(toBeRemoved)
     print('Peer list: ', self.peer_list)
-    self.deliver_peer_list(conn)
+    if len(self.peer_list) == 0 and DEBUG:
+      self.run_server = False
+      self.shutdown_server()
+    else:
+      self.deliver_peer_list(conn)
     
   def deliver_peer_list(self, conn):
     conn.sendall(pickle.dumps(list(self.peer_list)))
@@ -72,6 +86,7 @@ class P2PServer:
         
       message = conn.recv(1024).strip()
       print('Received message', message)
+    self.remove_peer(peer, conn)
     conn.close()
     print('thread dying...')
           
