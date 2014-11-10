@@ -17,9 +17,9 @@ class TestTransactionClass(unittest.TestCase):
     
   def test_create_transaction(self):
     
-    self.trans.add_input(Transaction.Input(20, b'FFFFFFFF'))
-    self.trans.add_output(Transaction.Output(10, self.key.publickey())) # just pay to ourselves for now
-    self.trans.add_input(Transaction.Input(5, None))
+    self.trans.add_input(Transaction.Input(20, b'FFFFFFFF', 0))
+    self.trans.add_output(Transaction.Output(10, self.key)) # just pay to ourselves for now
+    self.trans.add_input(Transaction.Input(5, b'FFFFFFFF', 0))
     
     # verify the transaction
     message = SHA256.new(str.encode('signature'))
@@ -30,9 +30,9 @@ class TestTransactionClass(unittest.TestCase):
     
   def test_build_raw_transaction(self):
     
-    self.trans.add_input(Transaction.Input(20, b'FFFFFFFF'))
-    self.trans.add_output(Transaction.Output(10, self.key.publickey())) # just pay to ourselves for now
-    self.trans.add_input(Transaction.Input(5, b'FFFFFFFF'))
+    self.trans.add_input(Transaction.Input(20, b'FFFFFFFF', 0))
+    self.trans.add_output(Transaction.Output(10, self.key)) # just pay to ourselves for now
+    self.trans.add_input(Transaction.Input(5, b'FFFFFFFF', 0))
     s = self.trans.build_struct()
     
     self.assertIsNotNone(s)

@@ -2,7 +2,7 @@ from Crypto.Hash import SHA256
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from Crypto import Random
-import struct
+import struct, time
 
 from keystore import *
 from P2P.client_manager import *
@@ -43,13 +43,18 @@ class Transaction:
       Self, for use as a factory type builder.
     """
     self.output.append(output)
+    from db import DB
+    db = DB()
+    db.insertUnspentOutput(output)
     return self
+    
+  def get_outputs(self):
+    return self.output
     
   def broadcast(self):
     """ Broadcast this transaction to peers
     
     Broadcast this transaction in json format to the peer network
-    
     """
     p2pclient = P2PClientManager.getClient()
     p2pclient.broadcast_transaction(self.build_struct())
@@ -91,7 +96,6 @@ class Transaction:
   def unpack(self, buf):
     """ unpacks a Transaction from a buffer of bytes
     
-    
     """
     num_in = struct.unpack_from('B', buf)[0]
     offset = 1
@@ -99,7 +103,13 @@ class Transaction:
     for i in range(num_in):
       self.input.append(Transaction.Input.unpack(buf, offset))
       offset += 66
+    ### TODO: Unpack outputs ###
     #print(self.build())
+    
+  def get_prev_transaction(self):
+    f = open('coinbase_transaction.dat', 'rb')
+    buf = f.read()
+    self.unpack(buf)
     
   def __repr__(self):
     return 'Transaction:' +\
@@ -118,33 +128,33 @@ class Transaction:
       n: the nth input in a transaction
     """
     
-    _n = 0  # the input count
-    
+    @staticmethod
     def unpack(buf, offset):
       value = struct.unpack_from('B', buf, offset)[0]
       offset += 1
       prev = buf[offset:offset+32]
       offset += 32
-      n = struct.unpack_from('B', buf, offset)[0]
+      n = struct.unpack_from('I', buf, offset)[0]
       offset += 1
       signature = buf[offset:offset+32]
-      i = Transaction.Input(value, prev)
+      i = Transaction.Input(value, prev, n)
       i.signature = signature
       i.n = n
       return i
-      
     
-    def __init__(self, value, prev):
+    def __init__(self, value, prev, n):
+      
+      ### TODO: prev needs to eb the hash of the previous transaction
+      
       self.value = value
       self.prev = prev
-      key = KeyStore.getPublicKey()
+      key = KeyStore.getPrivateKey()
       # sign the input
       message = SHA256.new(str.encode('signature'))
       signer = PKCS1_v1_5.new(key)
       self.signature = signer.sign(message)
-      
-      Transaction.Input._n += 1
-      self.n = Transaction.Input._n
+
+      self.n = n
       
       print('input #', self.n)
       
@@ -171,7 +181,7 @@ class Transaction:
       print('buf length: ', len(buf))
       buf.extend(struct.pack('B', self.value))
       buf.extend(self.hash_prev(hex=False))
-      buf.extend(struct.pack('B', self.n))
+      buf.extend(struct.pack('I', self.n))
       buf.extend(self.hash_sig(hex=False))
       print('buf length: ', len(buf))
       return buf
@@ -190,11 +200,12 @@ class Transaction:
     def __init__(self, value, pubKey):
       self.value = value
       self.pubKey = pubKey
+      self.timestamp = int(time.time())  # not sure if this is needed, but this will make each hash unique
       Transaction.Output._n += 1
       self.n = Transaction.Output._n
       
     def __repr__(self):
-        return str(self.value) + ', ' + self.hash_key()
+      return str(self.value) + ', ' + str(self.pubKey.exportKey())
         
     def hash_key(self, hex=True):
       hash = SHA256.new()
@@ -204,18 +215,41 @@ class Transaction:
       else:
         return hash.digest()
         
+    def hash_output(self):
+      bytes = self.pack(bytearray())
+      hash = SHA256.new()
+      hash.update(bytes)
+      return hash.hexdigest()
+        
     def pack(self, buf):
       buf.extend(struct.pack('I', self.value))
-      buf.extend(self.hash_key(hex=False))
+      buf.extend(struct.pack('I', self.timestamp))
+      buf.extend(self.pubKey.exportKey())
       return buf
+      
+    @staticmethod
+    def unpack(buf):
+      offset = 0
+      value = struct.unpack_from('I', buf, offset)[0]
+      offset += 4
+      offset += 4 # ignore timestamp
+      pubKey = RSA.importKey(buf[offset:offset+512])
+      i = Transaction.Output(value, pubKey)
+      return i
       
 if __name__ == '__main__':
   import sys
-  port = sys.argv[1]
-  P2PClient.CLIENT_PORT = int(port)
-  p2pclient = P2PClientManager.getClient()
+  #port = sys.argv[1]
+  #P2PClient.CLIENT_PORT = int(port)
+  #p2pclient = P2PClientManager.getClient()
+  c = CoinBase()
   t = Transaction()
-  t.add_input(Transaction.Input(100, b''))
+  db = DB()
+  prev = db.getUnspentOutput(100)
+  t.add_input(Transaction.Input(100, prev, 0))
   t.add_output(Transaction.Output(20, KeyStore.getPublicKey()))
   #t.build()
-  t.broadcast()
+  #t.broadcast()
+  t2 = Transaction()
+  t2.get_prev_transaction()
+  print(t2)

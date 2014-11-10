@@ -4,7 +4,7 @@ from P2P.p2pserver import P2PServer
 #from TransactionManager.transaction import Transaction
 from struct import *
 
-class P2PClient:
+class P2PClient(object):
   HOST = '192.168.1.2'   # hard coded IP of the peer list server (for now)
   PORT = P2PServer.PORT  # grab the port number of the server
   CLIENT_PORT = 65000       # right now this is set prior to creating a P2PClient
@@ -48,28 +48,31 @@ class P2PClient:
     self.send_message(Message.NEW_TRANSACTION, t)
   
   def __del__(self):
+    print('client dying...')
     try:
       self.p2pserver.sendall(Message.QUIT)
     except:
       pass
     finally:
       self.p2pserver.close()
-      if P2PClient.server:
-        P2PClient.server.shutdown()
+      if self.server:
+        self.server.shutdown()
         print('server dying...')
       
-  
-  def start_server():
+  @classmethod
+  def start_server(cls):
+    if cls.server:
+      return
     print('starting server...')
     HOST = ''     #allow connections from any ip address
     print('Serving on: ', ('', P2PClient.CLIENT_PORT))
-    P2PClient.server = socketserver.TCPServer((HOST, P2PClient.CLIENT_PORT), TCPHandler)
+    cls.server = socketserver.TCPServer((HOST, P2PClient.CLIENT_PORT), TCPHandler)
     print('running...')
-    P2PClient.server.serve_forever()
+    cls.server.serve_forever()
   
-  #def run():
-  t = threading.Thread(target=start_server)
-  t.start()
+  def run():
+    t = threading.Thread(target=P2PClient.start_server)
+    #t.start()
 
 class TCPHandler(socketserver.BaseRequestHandler):
   """ Handles incoming tcp requests """

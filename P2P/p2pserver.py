@@ -1,7 +1,7 @@
 import socket, threading, pickle
 #from TransactionManager.transaction import *
 from P2P.messages import Message
-from globals import DEBUG
+#from globals import DEBUG
 from struct import *
 
 
@@ -9,17 +9,20 @@ class P2PServer:
   
   HOST = ''                 # Symbolic name meaning all available interfaces
   PORT = 50007              # Arbitrary non-privileged port
+  DEBUG = True
   
   def __init__(self):
     self.peer_list = []
     print('Starting server...')
-    self.start_server()
+    self.t = threading.Thread(target=self.start_server)
+    self.t.start()
+    #self.start_server()
     
   def start_server(self):
     self.run_server = True
     self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     self.socket.bind((P2PServer.HOST, P2PServer.PORT))
-    self.socket.listen(2)
+    self.socket.listen(0)
     print('Listening...')
     conn, addr = self.socket.accept()
     print('Connected by', addr)
@@ -29,17 +32,22 @@ class P2PServer:
           t.start()
           print('waiting...')
           conn, addr = self.socket.accept()
+          print('Connected by', addr)
     except:
       print('Good bye...')
     finally:
+      print('Good bye...')
       conn.close()
       self.socket.close()
       
   def shutdown_server(self):
-    try:
-      self.socket.close()
-    except:
-      self.run_server = False
+    self.run_server = False
+    # Artificially connect to the waiting socket, just to close the loop
+    s = socket.socket(socket.AF_INET,
+                  socket.SOCK_STREAM)
+    s.connect( (P2PServer.HOST, P2PServer.PORT))
+    self.socket.close()
+    s.close()
     print('server dead')
   
   def add_peer(self, peer, port):
@@ -57,11 +65,11 @@ class P2PServer:
     print('Removing peer: ', p)
     self.peer_list.remove(toBeRemoved)
     print('Peer list: ', self.peer_list)
-    if len(self.peer_list) == 0 and DEBUG:
+    if len(self.peer_list) == 0 and P2PServer.DEBUG:
       self.run_server = False
       self.shutdown_server()
-    else:
-      self.deliver_peer_list(conn)
+    #else:
+      #self.deliver_peer_list(conn)
     
   def deliver_peer_list(self, conn):
     conn.sendall(pickle.dumps(list(self.peer_list)))
@@ -88,7 +96,6 @@ class P2PServer:
       print('Received message', message)
     self.remove_peer(peer, conn)
     conn.close()
-    print('thread dying...')
           
           
   def send_to_peers(self, payload, origin):
@@ -97,10 +104,13 @@ class P2PServer:
       #if port == origin:
        # continue
       print(peer)
-      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      s.connect(('localhost', port))
-      print('sending payload...')
-      s.sendall(payload)
+      try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(('localhost', port))
+        print('sending payload...')
+        s.sendall(payload)
+      except:
+        print('Connection failed')
         
 
 if __name__ == "__main__":

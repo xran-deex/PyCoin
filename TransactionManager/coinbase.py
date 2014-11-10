@@ -1,33 +1,36 @@
-from transaction import Transaction
+from TransactionManager.transaction import Transaction
 import keystore
-import random
+import random, os
 
 class CoinBase(Transaction):
   ''' Derived coinbase transaction '''
   
+  COINBASE_REWARD = 100
+  
   def __init__(self):
     Transaction.__init__(self)
     print('Creating a CoinBase transaction')
-    
-    # prev trans is 0 for coinbase
-    i = Transaction.Input(20, 0)
     # n is 2^32 -1  for coinbase
-    i.n = 2**32 - 1
+    n = 2**32 - 1
+    # prev trans is 0 for coinbase
+    i = Transaction.Input(CoinBase.COINBASE_REWARD, 0, n)
+    
     # 32 random bits for the coinbase field
     i.coinbase = random.getrandbits(32)
     super(CoinBase, self).add_input(i)
+    super(CoinBase, self).add_output(Transaction.Output(CoinBase.COINBASE_REWARD, keystore.KeyStore.getPublicKey()))
     
   def add_input(self):
     ''' coinbase transactions only have outputs. input is determined.'''
     pass
   
   def add_output(self, output):
-    self.output.append(output)
+    pass
 
 
 if __name__ == '__main__':
   
   cb = CoinBase()
   cb.add_output(Transaction.Output(10, keystore.KeyStore.getPublicKey()))
-  cb.build()
-  cb.broadcast()
+  print(cb)
+  #cb.broadcast()
