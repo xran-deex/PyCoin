@@ -1,5 +1,5 @@
-from Tkinter import *
-from ttk import Button, Style
+from tkinter import *
+#from ttk import Button, Style
 
 class GUI(Frame):
     
@@ -15,7 +15,7 @@ class GUI(Frame):
 
         #Label and Text field for BitCoin Amount
         self.label = Label(self, text="Amount of Bitcoins to send:")
-        self.label.grid(column=0, row=0)
+        #self.label.grid(column=0, row=0)
         self.label.pack()
         
         self.amountBox = Entry(self, bd=2)
@@ -23,16 +23,16 @@ class GUI(Frame):
 
         #Label and Text filed for Reciever Key
         self.label = Label(self, text="Recievers Public Key:")
-        self.label.grid(column=0, row=0)
+        #self.label.grid(column=0, row=0)
         self.label.pack()
 
         self.recieverKey = Text(self, width=40, height=15)
-        self.recieverKey.grid(column=0, row=2)
+        #self.recieverKey.grid(column=0, row=2)
         self.recieverKey.pack()
 
         #Send Button
         self.sendBtn = Button(self, text='\nSend BitCoin(s)\n', command=self.sendCoins)
-        self.sendBtn.grid(column=0, row=2)
+        #self.sendBtn.grid(column=0, row=2)
         self.sendBtn.pack(fill=X, pady=10)
 
         #Status Bar 
@@ -41,7 +41,7 @@ class GUI(Frame):
 
     #Send Button Callback Function  
     def sendCoins(self):
-        print 'Sent {} BitCoins to reciever: {}'.format(self.amountBox.get(), self.recieverKey.get("1.0",END))
+        print('Sent {} BitCoins to reciever: {}'.format(self.amountBox.get(), self.recieverKey.get("1.0",END)))
 
 def main():
   
