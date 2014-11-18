@@ -1,5 +1,6 @@
 import time, random
-import db
+import db, utils
+from Crypto.Hash import SHA256
 
 class Block:
   
@@ -13,6 +14,14 @@ class Block:
     
   def add_transaction(self, trans):
     self.transactionList.append(trans)
+    
+  def computeMerkleRoot(self):
+    self.HashMerkleRoot = Utils.buildMerkleTree(self.transactionList)
+    
+  def hash_block(self):
+    h = SHA256.new()
+    h.update(self.pack())
+    return h.digest()
     
   def getPreviousBlockHash(self):
     d = db.DB()

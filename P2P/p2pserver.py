@@ -77,17 +77,20 @@ class P2PServer:
   def handle_message(self, peer, conn):
     message = conn.recv(1024).strip()
     print('Received message', message)
-    while message and message[:4] != Message.QUIT:
+    while message and message != Message.QUIT:
       
-      if message[:3] == Message.ADD:
+      if message == Message.ADD:
         print(peer)
-        self.add_peer(peer[0], unpack('I', message[3:])[0])
+        port = conn.recv(1024).strip()
+        port = unpack('I', port)[0]
+        self.add_peer(peer[0], port)
         self.deliver_peer_list(conn)
+        self.send_to_peers(pickle.dumps(list(self.peer_list)), port, Message.ADD)
         
-      elif message[:15] == Message.NEW_TRANSACTION:
-        port = message[15:]
-        payload = conn.recv(1024).strip()
-        self.send_to_peers(payload, port)
+      # elif message == Message.NEW_TRANSACTION:
+      #   port = message[15:]
+      #   payload = conn.recv(1024).strip()
+      #   self.send_to_peers(payload, port)
         
       elif message[:6] == Message.REMOVE:
         self.remove_peer(peer, conn)
@@ -98,15 +101,22 @@ class P2PServer:
     conn.close()
           
           
-  def send_to_peers(self, payload, origin):
+  def send_to_peers(self, payload, origin, message):
     ''' broadcast a message to all peers '''
+    print(self.peer_list)
     for peer, port in self.peer_list:
-      #if port == origin:
-       # continue
+      if port == origin:
+        continue
       print(peer)
       try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(('localhost', port))
+        s.connect((peer, port))
+        
+        if message:
+          print('sending message...')
+          s.sendall(message)
+          import time
+          time.sleep(0.1)
         print('sending payload...')
         s.sendall(payload)
       except:

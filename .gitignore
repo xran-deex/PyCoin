@@ -1,12 +1,18 @@
 # wallet files
 *.dat
 
+# database files
+*.db
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 
 # C extensions
 *.so
+
+#backup files
+*.*~
 
 # Distribution / packaging
 .Python

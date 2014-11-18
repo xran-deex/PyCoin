@@ -6,15 +6,15 @@ class P2PClientManager:
 
   p2p = None
     
-  def getClient():
+  def getClient(port=65000):
     """ Returns the P2PClient object.
         If it doesn't exist, a new one is created, otherwise a reference to the existing client is returned.
     """
     if not P2PClientManager.p2p:
-      P2PClientManager.p2p = P2PClient('localhost')
+      P2PClientManager.p2p = P2PClient('localhost', port)
+      P2PClientManager.p2p.run()
       P2PClientManager.p2p.send_message(Message.ADD)
-      P2PClient.run()
-
+      
     return P2PClientManager.p2p
     
   def deleteClient():

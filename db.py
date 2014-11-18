@@ -17,14 +17,30 @@ class DB:
     # if there is no database file, create the db schema
     if db_is_new:
       print('Creating schema')
-      sql = '''create table if not exists OBJECTS(
-      ID CHAR(64) PRIMARY KEY,
-      PAYLOAD BLOB,
-      OWNER CHAR(64) NULL,
-      TYPE CHAR(5),
+      sql = '''create table if not exists TRANSACTIONS(
+      ID TEXT PRIMARY KEY,
+      TRANS BLOB,
       TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP
-      );'''
-      self.conn.execute(sql)
+      );
+      create table if not exists INPUT_OUTPUTS(
+      ID TEXT,
+      TRANS TEXT,
+      VALUE INTEGER,
+      PUBLIC_KEY TEXT,
+      SIGNATURE TEXT,
+      CONFIRMED INTEGER,
+      N INTEGER,
+      PACKED BLOB,
+      TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (TRANS, N)
+      );
+      create table if not exists BLOCKS(
+      ID TEXT PRIMARY KEY,
+      BLOCK BLOB,
+      TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      '''
+      self.conn.executescript(sql)
       
   def getTransactionByHash(self, hash):
     """ Retrieves a transaction by hash
@@ -34,17 +50,17 @@ class DB:
       
     Return: (Transaction) the transaction object or None if not found
     """
-    trans = self.conn.execute('SELECT * FROM OBJECTS WHERE ID = ?', [hash])
+    trans = self.conn.execute('SELECT * FROM TRANSACTIONS WHERE ID = ?', [hash])
     if not trans:
       return trans
-    return Transaction().unpack(trans)
+    return Transaction().unpack(trans[1])
     
   def getAllTransactions(self):
     """ Retrieves every transaction stored in the database
     
     Return: (list) Transaction objects
     """
-    trans = self.conn.execute('SELECT * FROM OBJECTS WHERE TYPE = ?', ['TRANS'])
+    trans = self.conn.execute('SELECT * FROM TRANSACTIONS')
     raw_list = trans.fetchall()
     result = []
     for item in raw_list:
@@ -53,14 +69,19 @@ class DB:
       result.append(t)
     return result
     
-  def insertUnspentOutput(self, out):
+  def insertUnspentOutput(self, out, trans):
     """ Inserts an unspent output into the database
     
     Param:
       out: (Transaction.Output) the output to be inserted
     """
     id = out.hash_key()
-    self.conn.execute('insert into OBJECTS (ID, PAYLOAD, TYPE, OWNER) values (?, ?, ?, ?)', [out.hash_output(), out.pack(bytearray()), 'UNSPT', id])
+    confirmed = 1
+    if type(out) is Transaction.Output:
+      confirmed = 0
+
+    self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), trans.get_hash(), out.n, confirmed, out.pack(bytearray())])
+      
     self.conn.commit()
     
   def insertTransaction(self, trans):
@@ -70,29 +91,39 @@ class DB:
       trans: (Transaction) the transaction to be inserted
     """
     t = trans.build_struct()
-    
-    ### NOT SURE IF THIS SHOULD GO HERE
-    #o = trans.get_outputs()
-    #for output in o:
-    #  self.insertUnspentOutput(output)
-    self.conn.execute('insert into OBJECTS (ID, PAYLOAD, TYPE) values (?, ?, ?)', [trans.get_hash(), t, 'TRANS'])
+
+    self.conn.execute('insert into TRANSACTIONS (ID, TRANS) values (?, ?)', [trans.get_hash(), t])
     self.conn.commit()
     
-  def getUnspentOutputs(self):
+  def removeUnspentOutput(self, out):
+    print('removing...', out.value, out.hash_output())
+    self.conn.execute('delete from INPUT_OUTPUTS WHERE ID = ?', [out.hash_output()])
+    self.conn.commit()
+    
+  def getUnspentOutputs(self, pubKey=None):
     """ Retrieves a list of all unspent outputs
     
     Return: (list) Transaction.Output objects
     """
-    unspents = self.conn.execute('SELECT * FROM OBJECTS WHERE TYPE = ?', ['UNSPT'])
+    unspents = None
+    if pubKey:
+      unspents = self.conn.execute('SELECT TRANS, PACKED FROM INPUT_OUTPUTS WHERE CONFIRMED = ? AND PUBLIC_KEY = ?', [0, pubKey.exportKey()])
+    else:
+      unspents = self.conn.execute('SELECT TRANS, PACKED FROM INPUT_OUTPUTS WHERE CONFIRMED = ? AND PUBLIC_KEY IS NOT NULL', [0])
     raw_list = unspents.fetchall()
     result = []
     for item in raw_list:
       trans = Transaction.Output.unpack(item[1])
+      trans.transaction = item[0]
       result.append(trans)
     return result
     
+  def confirmOutput(self, out):
+    self.conn.execute('delete from INPUT_OUTPUTS where ID = ?', [out.hash_output()])
+    self.conn.commit()
+    
   def getAllBlocks(self):
-    blocks = self.conn.execute('SELECT * FROM OBJECTS WHERE TYPE = ?', ['BLOCK'])
+    blocks = self.conn.execute('SELECT * FROM BLOCKS')
     raw_list = blocks.fetchall()
     result = []
     for item in raw_list:
@@ -102,22 +133,28 @@ class DB:
     return result
     
   def getLatestBlock(self):
-    block = self.conn.execute('SELECT * FROM OBJECTS WHERE TYPE = ? ORDER BY TIMESTAMP LIMIT 1', ['BLOCK'])
+    block = self.conn.execute('SELECT * FROM BLOCKS ORDER BY TIMESTAMP LIMIT 1')
     raw_list = block.fetchall()
     return raw_list[0]
     
 if __name__ == '__main__':
   from keystore import KeyStore
+  from Crypto.PublicKey import RSA
+  import time
+  otherKey = RSA.generate(2048)
   db = DB()
   c = CoinBase()
   t = Transaction()
-  t.add_input(Transaction.Input(100, b'', 0))
-  t.add_output(Transaction.Output(20, KeyStore.getPublicKey()))
-  db.insertTransaction(t)
+  #t.add_input(Transaction.Input(15, b'', 0))
+  t.add_output(Transaction.Output(7, otherKey.publickey()))
+  t.finish_transaction()
   #t = Transaction()
   #c = CoinBase()
-  #t.add_input(Transaction.Input(17, 0))
-  #t.add_output(Transaction.Output(7, KeyStore.getPublicKey()))
-  #db.insertTransaction(t)
-  print(db.getAllTransactions())
-  print(db.getUnspentOutputs())
+  #t.add_input(Transaction.Input(17, b'', 0))
+  #t.add_output(Transaction.Output(9, otherKey.publickey()))
+  #t.finish_transaction()
+  #print(db.getAllTransactions())
+  #myOuts = db.getUnspentOutputs(KeyStore.getPublicKey())
+  #print(myOuts)
+  #print(db.getUnspentOutputs(otherKey.publickey()))
+  time.sleep(10)

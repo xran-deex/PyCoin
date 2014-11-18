@@ -1,7 +1,7 @@
 from Crypto.Hash import SHA256
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
-from Crypto import Random
+from Crypto.Random import random
 import struct, time
 
 from keystore import *
@@ -16,21 +16,37 @@ class Transaction:
     self.input = []
     self.output = []
     self.hash = None
-
-  def build(self):
-    ''' build a transaction
-      this will eventually be encoded in binary format
-    '''
-    #print(self.payee, self.input, self.output)
-    print('Transaction:')
-    #print('nVersion: ', Transaction.nVersion)
-    print('#vin: ', len(self.input))
-    print('vin[]: ', self.input)
-    print('#vout: ', len(self.output))
-    print('vout[]: ', self.output)
     
   def add_input(self, inp):
-    self.input.append(inp)
+    """ since inputs are really just outputs, this will be slowly converted to just accepting an input value
+    and it finds previous output values from past transactions."""
+    target_val = inp.value
+    
+    # find all previous unspent outputs....
+    from db import DB
+    db = DB()
+    outputs = db.getUnspentOutputs(KeyStore.getPublicKey())
+    
+    # find enough outputs to total the requested input...
+    val = 0
+    for o in outputs:
+      val += o.value
+      inp = Transaction.Input(o.value, o.transaction, o.n)
+      self.input.append(inp)
+      db.removeUnspentOutput(o)
+      if val > target_val:
+        break
+    # compute change and create a new output to ourselves.
+    diff = val - target_val
+
+    if diff < 0:
+      raise Exception('Output exceeds input!')
+    # 'manually' add the change as an output back to ourselves
+    o = Transaction.Output(diff, KeyStore.getPublicKey())
+    self.output.append(o)
+    o.n = len(self.output)
+
+    db.insertUnspentOutput(o, self)
     return self
     
   def add_output(self, output):
@@ -42,10 +58,15 @@ class Transaction:
     Returns:
       Self, for use as a factory type builder.
     """
+    print('creating output...', output.value)
     self.output.append(output)
+    output.n = len(self.output)
+    self.add_input(output)
+    #output.transaction = self.hash_transaction()
+
     from db import DB
     db = DB()
-    db.insertUnspentOutput(output)
+    db.insertUnspentOutput(output, self)
     return self
     
   def get_outputs(self):
@@ -54,15 +75,20 @@ class Transaction:
   def broadcast(self):
     """ Broadcast this transaction to peers
     
-    Broadcast this transaction in json format to the peer network
+    Broadcast this transaction in packed binary format to the peer network
     """
-    p2pclient = P2PClientManager.getClient()
-    p2pclient.broadcast_transaction(self.build_struct())
+    try:
+      port = random.randint(40000, 60000)
+      p2pclient = P2PClientManager.getClient(port)
+      p2pclient.broadcast_transaction(self.build_struct())
+    except Exception as e:
+      print(e)
     
   def hash_transaction(self):
     """ Hashes the transaction in raw format """
     self.hash = SHA256.new()
     self.hash.update(self.build_struct())
+    return self.hash.digest()
     
   def get_hash(self):
     """ Retrieves this transaction's hash
@@ -73,6 +99,23 @@ class Transaction:
     if not self.hash:
       self.hash_transaction()
     return self.hash.hexdigest()
+    
+  def pay_diff_to_self(self):
+    totalIn = sum([x.value for x in self.input])
+    totalOut = sum([x.value for x in self.output])
+    print(totalIn, totalOut, totalIn-totalOut)
+    self.add_output(Transaction.Output(totalIn-totalOut, KeyStore.getPublicKey()))
+    
+  def finish_transaction(self):
+    #self.pay_diff_to_self()
+    self.store_transaction()
+    self.broadcast()
+    return self.build_struct()
+    
+  def store_transaction(self):
+    from db import DB
+    db = DB()
+    db.insertTransaction(self)
     
   def build_struct(self):
     
@@ -100,16 +143,18 @@ class Transaction:
     num_in = struct.unpack_from('B', buf)[0]
     offset = 1
     self.input = []
+    print(num_in)
     for i in range(num_in):
       self.input.append(Transaction.Input.unpack(buf, offset))
-      offset += 66
-    ### TODO: Unpack outputs ###
-    #print(self.build())
+      offset += 69
+    num_out = struct.unpack_from('B', buf)[0]
+    print(num_out)
+    offset += 1
+    for i in range(num_out):
+      out = Transaction.Output.unpack(buf, offset)
+      self.output.append(out)
+      offset += 517
     
-  def get_prev_transaction(self):
-    f = open('coinbase_transaction.dat', 'rb')
-    buf = f.read()
-    self.unpack(buf)
     
   def __repr__(self):
     return 'Transaction:' +\
@@ -156,8 +201,6 @@ class Transaction:
 
       self.n = n
       
-      print('input #', self.n)
-      
     def __repr__(self):
       return str(self.value) + ', ' + str(self.hash_sig())
       
@@ -178,12 +221,10 @@ class Transaction:
         return hash.digest()
       
     def pack(self, buf):
-      print('buf length: ', len(buf))
       buf.extend(struct.pack('B', self.value))
       buf.extend(self.hash_prev(hex=False))
       buf.extend(struct.pack('I', self.n))
       buf.extend(self.hash_sig(hex=False))
-      print('buf length: ', len(buf))
       return buf
       
   class Output:
@@ -195,14 +236,16 @@ class Transaction:
       n: the nth output in a transaction
     """
     
-    _n = 0   # the output count
+    #_n = 0   # the output count
     
     def __init__(self, value, pubKey):
       self.value = value
       self.pubKey = pubKey
+      # this will prevent accidentally storing the private key of a client
+      if pubKey.has_private():
+        raise Exception('Private key')
       self.timestamp = int(time.time())  # not sure if this is needed, but this will make each hash unique
-      Transaction.Output._n += 1
-      self.n = Transaction.Output._n
+      #self.transaction = None
       
     def __repr__(self):
       return str(self.value) + ', ' + str(self.pubKey.exportKey())
@@ -215,41 +258,54 @@ class Transaction:
       else:
         return hash.digest()
         
-    def hash_output(self):
+    def hash_output(self, hex=True):
       bytes = self.pack(bytearray())
       hash = SHA256.new()
       hash.update(bytes)
-      return hash.hexdigest()
+      if hex:
+        return hash.hexdigest()
+      else:
+        return hash.digest()
         
     def pack(self, buf):
+      #print('transaction hash length: ', len(self.transaction))
+      #buf.extend(self.transaction)
       buf.extend(struct.pack('I', self.value))
-      buf.extend(struct.pack('I', self.timestamp))
+      #buf.extend(struct.pack('I', self.timestamp))
+      buf.extend(struct.pack('B', self.n))
       buf.extend(self.pubKey.exportKey())
       return buf
       
     @staticmethod
-    def unpack(buf):
-      offset = 0
+    def unpack(buf, offset=0):
+      #transaction = buf[offset:offset+32]
+      #offset += 32
       value = struct.unpack_from('I', buf, offset)[0]
       offset += 4
-      offset += 4 # ignore timestamp
-      pubKey = RSA.importKey(buf[offset:offset+512])
+      #offset += 4 # ignore timestamp
+      n = struct.unpack_from('B', buf, offset)[0]
+      offset += 1
+      key = buf[offset:offset+450]
+      pubKey = RSA.importKey(buf[offset:offset+450])
       i = Transaction.Output(value, pubKey)
+      i.n = n
+      #i.transaction = transaction
       return i
       
 if __name__ == '__main__':
-  import sys
-  #port = sys.argv[1]
-  #P2PClient.CLIENT_PORT = int(port)
-  #p2pclient = P2PClientManager.getClient()
+  import sys, time
+  from keystore import KeyStore
+  from Crypto.PublicKey import RSA
+  otherKey = RSA.generate(2048)
+  from TransactionManager.coinbase import CoinBase
   c = CoinBase()
   t = Transaction()
-  db = DB()
-  prev = db.getUnspentOutput(100)
-  t.add_input(Transaction.Input(100, prev, 0))
-  t.add_output(Transaction.Output(20, KeyStore.getPublicKey()))
-  #t.build()
-  #t.broadcast()
-  t2 = Transaction()
-  t2.get_prev_transaction()
-  print(t2)
+
+  t.add_output(Transaction.Output(20, otherKey.publickey()))
+  t.finish_transaction()
+  time.sleep(10)
+  
+  t = Transaction()
+
+  t.add_output(Transaction.Output(12, otherKey.publickey()))
+  t.finish_transaction()
