@@ -2,6 +2,11 @@ import sqlite3, os
 from TransactionManager.transaction import Transaction
 from TransactionManager.coinbase import CoinBase
 #from BlockManager.block import Block
+import logging
+from globals import LOG_LEVEL
+
+log = logging.getLogger(__name__)
+log.setLevel(LOG_LEVEL)
 
 class DB:
   
@@ -16,7 +21,7 @@ class DB:
     
     # if there is no database file, create the db schema
     if db_is_new:
-      print('Creating schema')
+      log.info('Creating schema')
       sql = '''create table if not exists TRANSACTIONS(
       ID TEXT PRIMARY KEY,
       TRANS BLOB,
@@ -96,7 +101,7 @@ class DB:
     self.conn.commit()
     
   def removeUnspentOutput(self, out):
-    print('removing...', out.value, out.hash_output())
+    log.info('removing...%d, %s', out.value, out.hash_output())
     self.conn.execute('delete from INPUT_OUTPUTS WHERE ID = ?', [out.hash_output()])
     self.conn.commit()
     

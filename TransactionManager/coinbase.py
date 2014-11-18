@@ -4,6 +4,12 @@ import random, os
 from Crypto.Hash import SHA256
 import struct
 
+import logging
+from globals import LOG_LEVEL
+
+log = logging.getLogger(__name__)
+log.setLevel(LOG_LEVEL)
+
 class CoinBase(Transaction):
   ''' Derived coinbase transaction '''
   
@@ -11,7 +17,7 @@ class CoinBase(Transaction):
   
   def __init__(self):
     Transaction.__init__(self)
-    print('Creating a CoinBase transaction')
+    log.info('Creating a CoinBase transaction')
     # n is 2^8 -1  for coinbase
     n = 2**8 - 1
     # prev trans is 0 for coinbase

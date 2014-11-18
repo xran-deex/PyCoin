@@ -1,2 +1,3 @@
-global DEBUG
-DEBUG = True
+import logging
+logging.basicConfig()
+LOG_LEVEL = logging.WARN

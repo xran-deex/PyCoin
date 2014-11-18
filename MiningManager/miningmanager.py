@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+import logging
+from globals import LOG_LEVEL
+
+log = logging.getLogger(__name__)
+log.setLevel(LOG_LEVEL)
 
 import hashlib
 # test code to 1 learn python and 2 get an understanding of using sha256
@@ -47,11 +52,13 @@ class Miner:
     
   def handle_new_transaction(self, trans):
     self.transaction_queue.append(trans)
-    print('Received new transaction')
+    log.info('Received new transaction')
+    
 
 if __name__ == '__main__':
 	argument = 'abc123'
-	findnum(argument)
-	findnum2(argument)
-	
+	#findnum(argument)
+	#findnum2(argument)
+	m = Miner()
+	m.handle_new_transaction('asd')
   

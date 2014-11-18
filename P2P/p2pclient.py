@@ -2,7 +2,12 @@ import socket, pickle, threading, socketserver
 from P2P.messages import Message
 from P2P.p2pserver import P2PServer
 
-#from TransactionManager.transaction import Transaction
+import logging
+from globals import LOG_LEVEL
+
+log = logging.getLogger(__name__)
+log.setLevel(LOG_LEVEL)
+
 from struct import *
 import time
 
@@ -17,9 +22,9 @@ class P2PClient(object):
       P2PClient.CLIENT_PORT = port
     else:
       P2PClient.CLIENT_PORT = 65000
-    print('Creating client on port...', self.CLIENT_PORT)
+    log.info('Creating client on port... %d', self.CLIENT_PORT)
     self.p2pserver = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print('Connecting to host...')
+    log.info('Connecting to host...')
     self.p2pserver.connect((host, P2PClient.PORT))
     self.myIP = self.p2pserver.getsockname()[0] # the ip of this machine
     self.trans_queue = []
@@ -28,7 +33,7 @@ class P2PClient(object):
     self.listeners = []
     
   def send_message(self, message, payload=None):
-    print('Sending message...')
+    log.info('Sending message...')
     if message == Message.ADD:
       # if the message is add, send an 'ADD' message to the p2p server
       self.p2pserver.sendall(message)
@@ -41,7 +46,7 @@ class P2PClient(object):
       # if the message is 'NEW_TRANSACTION', send the message and payload (packed transaction) to each peer
       if len(self.peer_list) == 1 and self.peer_is_self(self.peer_list[0]):
         self.queue_transaction(payload)
-        print('queued transaction')
+        log.info('queued transaction')
         return
       for peer in self.peer_list:
         
@@ -50,12 +55,12 @@ class P2PClient(object):
           continue
         
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        print('Connecting to peer', peer)
+        log.info('Connecting to peer %s', peer)
         s.connect(peer)
-        print('sent message: ', message)
+        log.info('sent message: %s', message)
         s.sendall(message)
         time.sleep(0.1)
-        print('sending payload...')
+        log.info('sending payload...')
         s.sendall(payload)
         s.close()
     
@@ -80,7 +85,7 @@ class P2PClient(object):
     Param: listener
     """
     self.listeners.append(callback)
-    print('miner subscribed')
+    log.info('miner subscribed')
     
   def notify_subscribers(self, trans):
     for callback in self.listeners:
@@ -93,12 +98,12 @@ class P2PClient(object):
   def update_peer_list(self, peer_list):
     self.peer_list = peer_list
     if len(self.trans_queue) > 0:
-      print('sending queued transactions')
+      log.info('sending queued transactions')
       for t in self.trans_queue:
         self.send_message(Message.NEW_TRANSACTION, t)
       
   def __del__(self):
-    print('client dying...')
+    log.info('client dying...')
     try:
       self.p2pserver.sendall(Message.QUIT)
     except:
@@ -113,11 +118,11 @@ class P2PClient(object):
   def start_server(self):
     if self.server:
       return
-    print('starting server...')
+    log.info('starting server...')
     HOST = ''     #allow connections from any ip address
-    print('Serving on: ', ('', self.CLIENT_PORT))
+    log.info('Serving on: %s', ('', self.CLIENT_PORT))
     self.server = socketserver.TCPServer((HOST, self.CLIENT_PORT), TCPHandler)
-    print('running...')
+    log.info('running...')
     self.server.serve_forever()
   
   def run(self):
@@ -127,7 +132,7 @@ class P2PClient(object):
 class TCPHandler(socketserver.BaseRequestHandler):
   """ Handles incoming tcp requests """
   def handle(self):
-    print('received message from a peer...')
+    log.info('received message from a peer...')
     message = self.request.recv(15).strip()
     if message == Message.NEW_TRANSACTION:
       from TransactionManager.transaction import Transaction
@@ -143,7 +148,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
       client = P2PClientManager.getClient()
       port = self.request.recv(128).strip()
       peer_list = pickle.loads(port)
-      print('peer list: ', peer_list)
+      log.info('peer list: %s', peer_list)
       client.update_peer_list(peer_list)
       
       

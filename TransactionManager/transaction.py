@@ -4,6 +4,12 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import random
 import struct, time
 
+import logging
+from globals import LOG_LEVEL
+
+log = logging.getLogger(__name__)
+log.setLevel(LOG_LEVEL)
+
 from keystore import *
 from P2P.client_manager import *
 
@@ -12,7 +18,7 @@ class Transaction:
   nVersion = 1
   
   def __init__(self):
-    print('Creating a regular transaction')
+    log.info('Creating a regular transaction')
     self.input = []
     self.output = []
     self.hash = None
@@ -58,7 +64,7 @@ class Transaction:
     Returns:
       Self, for use as a factory type builder.
     """
-    print('creating output...', output.value)
+    log.info('creating output... %d', output.value)
     self.output.append(output)
     output.n = len(self.output)
     self.add_input(output)
@@ -143,12 +149,12 @@ class Transaction:
     num_in = struct.unpack_from('B', buf)[0]
     offset = 1
     self.input = []
-    print(num_in)
+
     for i in range(num_in):
       self.input.append(Transaction.Input.unpack(buf, offset))
       offset += 69
     num_out = struct.unpack_from('B', buf)[0]
-    print(num_out)
+
     offset += 1
     for i in range(num_out):
       out = Transaction.Output.unpack(buf, offset)
