@@ -4,6 +4,7 @@ from P2P.p2pserver import P2PServer
 
 #from TransactionManager.transaction import Transaction
 from struct import *
+import time
 
 class P2PClient(object):
   HOST = '192.168.1.2'   # hard coded IP of the peer list server (for now)
@@ -24,6 +25,7 @@ class P2PClient(object):
     self.trans_queue = []
     self.received_trans = []
     self.peer_list = []
+    self.listeners = []
     
   def send_message(self, message, payload=None):
     print('Sending message...')
@@ -34,7 +36,6 @@ class P2PClient(object):
       time.sleep(0.1)
       self.p2pserver.sendall(pack('I', self.CLIENT_PORT))
       self.peer_list = pickle.loads(self.p2pserver.recv(1024).strip())
-      #print('Received peer list: ', self.peer_list)
       
     elif message == Message.NEW_TRANSACTION:
       # if the message is 'NEW_TRANSACTION', send the message and payload (packed transaction) to each peer
@@ -53,7 +54,6 @@ class P2PClient(object):
         s.connect(peer)
         print('sent message: ', message)
         s.sendall(message)
-        import time
         time.sleep(0.1)
         print('sending payload...')
         s.sendall(payload)
@@ -70,8 +70,24 @@ class P2PClient(object):
     
   def queue_transaction_received(self, t):
     self.received_trans.append(t)
+    
+  def get_queued_transactions(self):
+    return self.received_trans
+    
+  def subscribe(self, callback):
+    """ Add listeners to get notified when new transactions are received from the network
+    
+    Param: listener
+    """
+    self.listeners.append(callback)
+    print('miner subscribed')
+    
+  def notify_subscribers(self, trans):
+    for callback in self.listeners:
+      callback(trans)
   
   def broadcast_transaction(self, t):
+    self.notify_subscribers(t)
     self.send_message(Message.NEW_TRANSACTION, t)
     
   def update_peer_list(self, peer_list):
@@ -121,7 +137,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
       client.queue_transaction_received(t)
-      print(client.received_trans)
+      client.notify_subscribers(t)
     elif message == Message.ADD:
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
