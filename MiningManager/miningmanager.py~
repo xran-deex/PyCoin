@@ -2,40 +2,40 @@
 
 import hashlib
 # test code to 1 learn python and 2 get an understanding of using sha256
-# findnum finds a number that when hashed with 'a' returns 24 0s or 3 0 bytes
+# findnum finds a number that when hashed with 'a' returns a number begining with 24 0s or 3 0 bytes
 def findnum(a):
 	x = hashlib.sha256() 
 	x.update(a)
 	number = 0 
 	str_number = str(number)
 	x.update(str_number)
-	hash = x.digest()
-	while hash[-3:] != '\0\0\0': 
+	h = x.digest()
+	while h[-3:] != '\0\0\0': 
 		x = hashlib.sha256()
 		x.update(a)
 		number += 1
 		str_number = str(number)
 		x.update(str_number)
-		hash = x.digest()
+		h = x.digest()
 	print number
 	return number
-# findnum finds a number that when hashed with 'a' returns 24 0s
+# findnum2 finds a number that when hashed with 'a' returns a number begining with 24 0s, takes longer then findnum
 def findnum2(a):
 	x = hashlib.sha256()
 	x.update(a)
 	number = 0
 	str_number = str(number)
 	x.update(str_number)
-	hash = x.hexdigest()
-	z = bin(long(hash, 16))[2:]
+	h = x.hexdigest()
+	z = bin(long(h, 16))[2:]
 	while z[-24:] != '000000000000000000000000': 
 		x = hashlib.sha256()
 		x.update(a)
 		number += 1
 		str_number = str(number)
 		x.update(str_number)
-		hash = x.hexdigest()
-		z = bin(long(hash, 16))[2:]	
+		h = x.hexdigest()
+		z = bin(long(h, 16))[2:]	
 	print z	
 	print number
 	return number
@@ -45,3 +45,12 @@ if __name__ == '__main__':
 	findnum(argument)
 	findnum2(argument)
 	
+	while true
+		x=hashlib.sha256()
+		for i in range(0, 10)
+			t[x] = #get transaction hash
+			x.update(t[x])
+		x.update(#userid)
+		num = numfindnum(x)
+		return block
+		
