@@ -17,11 +17,15 @@ class Transaction:
   ''' Base "regular" transaction '''
   nVersion = 1
   
-  def __init__(self):
+  def __init__(self, owner=None):
     log.info('Creating a regular transaction')
     self.input = []
     self.output = []
     self.hash = None
+    if not owner:
+      self.owner = KeyStore.getPrivateKey()
+    else:
+      self.owner = owner
     
   def add_input(self, inp):
     """ since inputs are really just outputs, this will be slowly converted to just accepting an input value
@@ -31,15 +35,15 @@ class Transaction:
     # find all previous unspent outputs....
     from db import DB
     db = DB()
-    outputs = db.getUnspentOutputs(KeyStore.getPublicKey())
+    outputs = db.getUnspentOutputs(self.owner.publickey())
     
     # find enough outputs to total the requested input...
     val = 0
     for o in outputs:
       val += o.value
-      inp = Transaction.Input(o.value, o.transaction, o.n)
+      inp = Transaction.Input(o.value, o.transaction, o.n, owner=self.owner)
       self.input.append(inp)
-      db.removeUnspentOutput(o)
+      #db.removeUnspentOutput(o)
       if val > target_val:
         break
     # compute change and create a new output to ourselves.
@@ -48,7 +52,7 @@ class Transaction:
     if diff < 0:
       raise Exception('Output exceeds input!')
     # 'manually' add the change as an output back to ourselves
-    o = Transaction.Output(diff, KeyStore.getPublicKey())
+    o = Transaction.Output(diff, self.owner.publickey())
     self.output.append(o)
     o.n = len(self.output)
 
@@ -68,7 +72,6 @@ class Transaction:
     self.output.append(output)
     output.n = len(self.output)
     self.add_input(output)
-    #output.transaction = self.hash_transaction()
 
     from db import DB
     db = DB()
@@ -86,55 +89,51 @@ class Transaction:
     try:
       port = random.randint(40000, 60000)
       p2pclient = P2PClientManager.getClient(port)
-      p2pclient.broadcast_transaction(self.build_struct())
+      p2pclient.broadcast_transaction(self.pack(withSig=True))
     except Exception as e:
-      print(e)
+      log.warning(e)
     
   def hash_transaction(self):
     """ Hashes the transaction in raw format """
+    if self.hash:
+      return self.hash.digest()
     self.hash = SHA256.new()
-    self.hash.update(self.build_struct())
+    self.hash.update(self.pack())
     return self.hash.digest()
-    
-  def get_hash(self):
-    """ Retrieves this transaction's hash
-    
-    Returns:
-      This transaction's hash as a hex string
-    """
-    if not self.hash:
-      self.hash_transaction()
-    return self.hash.hexdigest()
     
   def pay_diff_to_self(self):
     totalIn = sum([x.value for x in self.input])
     totalOut = sum([x.value for x in self.output])
     print(totalIn, totalOut, totalIn-totalOut)
-    self.add_output(Transaction.Output(totalIn-totalOut, KeyStore.getPublicKey()))
+    self.add_output(Transaction.Output(totalIn-totalOut, self.owner.publickey()))
     
   def finish_transaction(self):
     #self.pay_diff_to_self()
+    for i in self.input:
+      i.apply_signature(self.hash_transaction())
     self.store_transaction()
     self.broadcast()
-    return self.build_struct()
+    #return self.pack()
     
   def store_transaction(self):
     from db import DB
     db = DB()
     db.insertTransaction(self)
     
-  def build_struct(self):
+  def pack(self, withSig=False):
     
     buffer = bytearray()
+    print(len(self.hash_transaction()))
+    buffer.extend(self.hash_transaction())
     buffer.extend(struct.pack('B', len(self.input)))
-    self.pack_inputs(buffer)
+    self.pack_inputs(buffer, withSig)
     buffer.extend(struct.pack('B', len(self.output)))
     self.pack_outputs(buffer)
     return buffer
     
-  def pack_inputs(self, buf):
+  def pack_inputs(self, buf, withSig):
     for inp in self.input:
-      inp.pack(buf)
+      inp.pack(buf, withSig=withSig)
     return buf
     
   def pack_outputs(self, buf):
@@ -146,20 +145,26 @@ class Transaction:
     """ unpacks a Transaction from a buffer of bytes
     
     """
-    num_in = struct.unpack_from('B', buf)[0]
-    offset = 1
+    self.hash = SHA256.new(buf[:32])
+    print(self.hash)
+    offset = 32
+    num_in = struct.unpack_from('B', buf, offset)[0]
+    print('num in: ', num_in)
+    offset += 1
     self.input = []
 
     for i in range(num_in):
       self.input.append(Transaction.Input.unpack(buf, offset))
-      offset += 69
-    num_out = struct.unpack_from('B', buf)[0]
-
+      offset += 290
+      
+    num_out = struct.unpack_from('B', buf, offset)[0]
     offset += 1
+    
+    self.output = []
     for i in range(num_out):
       out = Transaction.Output.unpack(buf, offset)
       self.output.append(out)
-      offset += 517
+      offset += 455
     
     
   def __repr__(self):
@@ -168,6 +173,27 @@ class Transaction:
     '\nvin[]: ' + str(self.input) +\
     '\n#vout: ' + str(len(self.output)) +\
     '\nvout[]: ' + str(self.output)
+    
+  def verify(self):
+    # find all previous unspent outputs....
+    from db import DB
+    db = DB()
+    outputs = db.getUnspentOutputs(self.owner.publickey())
+    for o in outputs:
+      for i in self.input:
+        if i.prev == o.transaction:# and i.n == o.n:
+          if not self.check_sig(i.signature, o.pubKey, o.transaction):
+            return False
+          print('removing output...')
+          db.removeUnspentOutput(o) # output was verified, remove it
+    return True
+    
+  def check_sig(self, signature, pubKey, trans):
+    trans = b'MESSAGE'
+    message = SHA256.new(trans)
+    verifier = PKCS1_v1_5.new(pubKey)
+    verified = verifier.verify(message, signature)
+    return verified
     
   # inner class representing inputs/outputs to a transaction
   class Input:
@@ -185,52 +211,53 @@ class Transaction:
       offset += 1
       prev = buf[offset:offset+32]
       offset += 32
-      n = struct.unpack_from('I', buf, offset)[0]
+      n = struct.unpack_from('B', buf, offset)[0]
       offset += 1
-      signature = buf[offset:offset+32]
+      signature = buf[offset:offset+256]
       i = Transaction.Input(value, prev, n)
       i.signature = signature
       i.n = n
       return i
     
-    def __init__(self, value, prev, n):
+    def __init__(self, value, prev, n, owner=None):
       
       ### TODO: prev needs to eb the hash of the previous transaction
       
       self.value = value
       self.prev = prev
-      key = KeyStore.getPrivateKey()
-      # sign the input
-      message = SHA256.new(str.encode('signature'))
-      signer = PKCS1_v1_5.new(key)
-      self.signature = signer.sign(message)
-
       self.n = n
+      self.signature = None
+      if not owner:
+        self.owner = KeyStore.getPrivateKey()
+      else:
+        self.owner = owner
       
     def __repr__(self):
-      return str(self.value) + ', ' + str(self.hash_sig())
+      return 'Input:' +\
+      '\n#value: ' + str(self.value) +\
+      '\nprev trans: ' + str(self.prev) +\
+      '\nn: ' + str(self.n) +\
+      '\nsignature: ' + str(self.signature)
       
-    def hash_sig(self, hex=True):
-      hash = SHA256.new()
-      hash.update(self.signature)
-      if hex:
-        return hash.hexdigest()
-      else:
-        return hash.digest()
-    
-    def hash_prev(self, hex=True):
-      hash = SHA256.new()
-      hash.update(self.signature)
-      if hex:
-        return hash.hexdigest()
-      else:
-        return hash.digest()
+    def apply_signature(self, trans_hash):
+      """ Signs a hash of the transaction
       
-    def pack(self, buf):
+      Param: trans_hash - the hash of the current transaction
+      """
+      # sign the input
+      
+      ## !!! Hash isn't working, let's just sign anything for now
+      trans_hash = b'MESSAGE'
+      message = SHA256.new(trans_hash)
+      signer = PKCS1_v1_5.new(self.owner)
+      self.signature = signer.sign(message)
+      
+    def pack(self, buf, withSig=False):
       buf.extend(struct.pack('B', self.value))
-      buf.extend(self.hash_prev(hex=False))
-      buf.extend(struct.pack('I', self.n))
-      buf.extend(self.hash_sig(hex=False))
+      buf.extend(self.prev)
+      buf.extend(struct.pack('B', self.n))
+      if withSig:
+        buf.extend(self.signature)
       return buf
       
   class Output:
@@ -251,10 +278,14 @@ class Transaction:
       if pubKey.has_private():
         raise Exception('Private key')
       self.timestamp = int(time.time())  # not sure if this is needed, but this will make each hash unique
-      #self.transaction = None
+      self.transaction = None
+      self.n = -1
       
     def __repr__(self):
-      return str(self.value) + ', ' + str(self.pubKey.exportKey())
+      return 'Output:' +\
+      '\n#value: ' + str(self.value) +\
+      '\npublic key: ' + str(self.pubKey.exportKey()) +\
+      '\ntrans: ' + str(self.transaction)
         
     def hash_key(self, hex=True):
       hash = SHA256.new()
@@ -293,10 +324,10 @@ class Transaction:
       offset += 1
       key = buf[offset:offset+450]
       pubKey = RSA.importKey(buf[offset:offset+450])
-      i = Transaction.Output(value, pubKey)
-      i.n = n
+      o = Transaction.Output(value, pubKey)
+      o.n = n
       #i.transaction = transaction
-      return i
+      return o
       
 if __name__ == '__main__':
   import sys, time
@@ -315,3 +346,12 @@ if __name__ == '__main__':
 
   t.add_output(Transaction.Output(12, otherKey.publickey()))
   t.finish_transaction()
+  # c = CoinBase()
+  # t = Transaction()
+  # t.add_output(Transaction.Output(20, otherKey.publickey()))
+  # for i in t.input:
+  #     i.apply_signature(t.hash_transaction())
+  # b = t.pack(withSig=True)
+  # #print(b)
+  # t.unpack(b)
+  # print(t)

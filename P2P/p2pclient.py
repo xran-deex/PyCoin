@@ -34,10 +34,11 @@ class P2PClient(object):
     
   def send_message(self, message, payload=None):
     log.info('Sending message...')
+    import time
     if message == Message.ADD:
       # if the message is add, send an 'ADD' message to the p2p server
       self.p2pserver.sendall(message)
-      import time
+      
       time.sleep(0.1)
       self.p2pserver.sendall(pack('I', self.CLIENT_PORT))
       self.peer_list = pickle.loads(self.p2pserver.recv(1024).strip())
@@ -63,6 +64,24 @@ class P2PClient(object):
         log.info('sending payload...')
         s.sendall(payload)
         s.close()
+        
+    elif message == Message.NEW_BLOCK:
+      # handle a new block
+      for peer in self.peer_list:
+        
+        if self.peer_is_self(peer):
+          continue
+        
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        log.info('Connecting to peer %s', peer)
+        s.connect(peer)
+        log.info('sent message: %s', message)
+        s.sendall(message)
+        time.sleep(0.1)
+        log.info('sending payload...')
+        s.sendall(payload)
+        s.close()
+        
     
     elif message == Message.REMOVE:
       self.p2pserver.sendall(message)
@@ -94,6 +113,10 @@ class P2PClient(object):
   def broadcast_transaction(self, t):
     self.notify_subscribers(t)
     self.send_message(Message.NEW_TRANSACTION, t)
+    
+  def broadcast_block(self, b):
+    self.notify_subscribers(b) # fix later
+    self.send_message(Message.NEW_BLOCK, b)
     
   def update_peer_list(self, peer_list):
     self.peer_list = peer_list
@@ -136,9 +159,13 @@ class TCPHandler(socketserver.BaseRequestHandler):
     message = self.request.recv(15).strip()
     if message == Message.NEW_TRANSACTION:
       from TransactionManager.transaction import Transaction
-      trans = self.request.recv(1024).strip()
+      trans = self.request.recv(2048).strip()
       t = Transaction()
       t.unpack(trans)
+      if not t.verify():
+        raise Exception('Transaction invalid!')
+      else:
+        log.info('Transaction has been verified')
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
       client.queue_transaction_received(t)
@@ -156,6 +183,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
 if __name__ == '__main__':
   import sys
   from keystore import KeyStore
+  from TransactionManager.transaction import Transaction
   port = sys.argv[1]
   P2PClient.CLIENT_PORT = int(port)
   trans = Transaction()

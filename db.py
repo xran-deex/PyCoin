@@ -29,7 +29,7 @@ class DB:
       );
       create table if not exists INPUT_OUTPUTS(
       ID TEXT,
-      TRANS TEXT,
+      TRANS BLOB,
       VALUE INTEGER,
       PUBLIC_KEY TEXT,
       SIGNATURE TEXT,
@@ -85,7 +85,7 @@ class DB:
     if type(out) is Transaction.Output:
       confirmed = 0
 
-    self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), trans.get_hash(), out.n, confirmed, out.pack(bytearray())])
+    self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), trans.hash_transaction(), out.n, confirmed, out.pack(bytearray())])
       
     self.conn.commit()
     
@@ -95,9 +95,9 @@ class DB:
     Param:
       trans: (Transaction) the transaction to be inserted
     """
-    t = trans.build_struct()
+    t = trans.pack()
 
-    self.conn.execute('insert into TRANSACTIONS (ID, TRANS) values (?, ?)', [trans.get_hash(), t])
+    self.conn.execute('insert into TRANSACTIONS (ID, TRANS) values (?, ?)', [trans.hash_transaction(), t])
     self.conn.commit()
     
   def removeUnspentOutput(self, out):
@@ -141,6 +141,10 @@ class DB:
     block = self.conn.execute('SELECT * FROM BLOCKS ORDER BY TIMESTAMP LIMIT 1')
     raw_list = block.fetchall()
     return raw_list[0]
+    
+  def insertBlock(self, block):
+    self.conn.execute('insert into BLOCKS (ID, BLOCK) values (?, ?)', [block.hash_block(hex=True), block.pack()])
+    self.conn.commit()
     
 if __name__ == '__main__':
   from keystore import KeyStore

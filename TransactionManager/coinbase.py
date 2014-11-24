@@ -15,27 +15,53 @@ class CoinBase(Transaction):
   
   COINBASE_REWARD = 100
   
-  def __init__(self):
+  def __init__(self, owner=None):
     Transaction.__init__(self)
     log.info('Creating a CoinBase transaction')
+    if not owner:
+      self.owner = keystore.KeyStore.getPrivateKey()
+    else:
+      self.owner = owner
     # n is 2^8 -1  for coinbase
     n = 2**8 - 1
     # prev trans is 0 for coinbase
-    i = Transaction.Input(CoinBase.COINBASE_REWARD, 0, n)
+    i = Transaction.Input(CoinBase.COINBASE_REWARD, self.get_zero_bytes(), n, owner=self.owner)
     
     # 32 random bits for the coinbase field
     i.coinbase = random.getrandbits(32)
     self.add_input(i)
-    out = Transaction.Output(CoinBase.COINBASE_REWARD, keystore.KeyStore.getPublicKey())
-    out.transaction = self.hash_zero()
-    super(CoinBase, self).add_output(out)
+    out = Transaction.Output(CoinBase.COINBASE_REWARD, self.owner.publickey())
+    #out.transaction = self.hash_zero()
+    self.add_output(out)
+    
+  def get_zero_bytes(self):
+    b = bytearray()
+    for i in range(8):
+      b.extend(struct.pack('I', 0))
+    return b
     
   def add_input(self, i):
     ''' coinbase transactions only have outputs. input is determined.'''
     self.input.append(i)
   
   def add_output(self, output):
-    pass
+    """ Adds an output to this transaction
+    
+    Args:
+      output: an Transaction.Output object that will be added to this transaction
+      
+    Returns:
+      Self, for use as a factory type builder.
+    """
+    log.info('creating output... %d', output.value)
+    self.output.append(output)
+    output.n = len(self.output)
+    #output.transaction = self.hash_transaction()
+
+    from db import DB
+    db = DB()
+    db.insertUnspentOutput(output, self)
+    return self
   
   def hash_zero(self):
     hash = SHA256.new()
