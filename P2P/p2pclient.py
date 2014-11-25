@@ -29,8 +29,10 @@ class P2PClient(object):
     self.myIP = self.p2pserver.getsockname()[0] # the ip of this machine
     self.trans_queue = []
     self.received_trans = []
+    self.received_blocks = []
     self.peer_list = []
-    self.listeners = []
+    self.trans_listeners = []
+    self.block_listeners = []
     
   def send_message(self, message, payload=None):
     log.info('Sending message...')
@@ -92,30 +94,40 @@ class P2PClient(object):
   def queue_transaction(self, t):
     self.trans_queue.append(t)
     
-  def queue_transaction_received(self, t):
-    self.received_trans.append(t)
+  def queue_item_received(self, message_type, t):
+    if message_type == Message.NEW_TRANSACTION:
+      self.received_trans.append(t)
+    elif message_type == Message.NEW_BLOCK:
+      self.received_blocks.append(t)
     
   def get_queued_transactions(self):
     return self.received_trans
     
-  def subscribe(self, callback):
+  def subscribe(self, message_type, callback):
     """ Add listeners to get notified when new transactions are received from the network
     
     Param: listener
     """
-    self.listeners.append(callback)
-    log.info('miner subscribed')
+    if message_type == Message.NEW_TRANSACTION:
+      self.trans_listeners.append(callback)
+    elif message_type == Message.NEW_BLOCK:
+      self.block_listeners.append(callback)
+      log.info('miner subscribed')
     
-  def notify_subscribers(self, trans):
-    for callback in self.listeners:
-      callback(trans)
+  def notify_subscribers(self, message_type, trans):
+    if message_type == Message.NEW_TRANSACTION:
+      for callback in self.trans_listeners:
+        callback(trans)
+    elif message_type == Message.NEW_BLOCK:
+      for callback in self.block_listeners:
+        callback(trans)
   
   def broadcast_transaction(self, t):
-    self.notify_subscribers(t)
+    self.notify_subscribers(Message.NEW_TRANSACTION, t)
     self.send_message(Message.NEW_TRANSACTION, t)
     
   def broadcast_block(self, b):
-    self.notify_subscribers(b) # fix later
+    self.notify_subscribers(Message.NEW_BLOCK, b) # fix later
     self.send_message(Message.NEW_BLOCK, b)
     
   def update_peer_list(self, peer_list):
@@ -155,11 +167,11 @@ class P2PClient(object):
 class TCPHandler(socketserver.BaseRequestHandler):
   """ Handles incoming tcp requests """
   def handle(self):
-    log.info('received message from a peer...')
     message = self.request.recv(15).strip()
+    log.info('received message from a peer..., %s', message)
     if message == Message.NEW_TRANSACTION:
       from TransactionManager.transaction import Transaction
-      trans = self.request.recv(2048).strip()
+      trans = self.request.recv(2048)
       t = Transaction()
       t.unpack(trans)
       if not t.verify():
@@ -168,8 +180,21 @@ class TCPHandler(socketserver.BaseRequestHandler):
         log.info('Transaction has been verified')
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
-      client.queue_transaction_received(t)
-      client.notify_subscribers(t)
+      client.queue_item_received(Message.NEW_TRANSACTION, t)
+      client.notify_subscribers(Message.NEW_TRANSACTION, t)
+    elif message == Message.NEW_BLOCK:
+      from BlockManager.block import Block
+      block = self.request.recv(2048)
+      b = Block()
+      b.unpack(block)
+      if not b.verify():
+        raise Exception('Block invalid!')
+      else:
+        log.info('Block has been verified')
+      from P2P.client_manager import P2PClientManager
+      client = P2PClientManager.getClient()
+      client.queue_item_received(Message.NEW_BLOCK, b)
+      client.notify_subscribers(Message.NEW_BLOCK, b)
     elif message == Message.ADD:
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()

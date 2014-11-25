@@ -71,6 +71,8 @@ class Transaction:
     log.info('creating output... %d', output.value)
     self.output.append(output)
     output.n = len(self.output)
+    
+    # find (and add) the necessary inputs
     self.add_input(output)
 
     from db import DB
@@ -109,11 +111,14 @@ class Transaction:
     
   def finish_transaction(self):
     #self.pay_diff_to_self()
-    for i in self.input:
-      i.apply_signature(self.hash_transaction())
+    self.sign_inputs()
     self.store_transaction()
     self.broadcast()
     #return self.pack()
+    
+  def sign_inputs(self):
+    for i in self.input:
+      i.apply_signature(self.hash_transaction())
     
   def store_transaction(self):
     from db import DB
@@ -123,7 +128,6 @@ class Transaction:
   def pack(self, withSig=False):
     
     buffer = bytearray()
-    print(len(self.hash_transaction()))
     buffer.extend(self.hash_transaction())
     buffer.extend(struct.pack('B', len(self.input)))
     self.pack_inputs(buffer, withSig)
@@ -146,15 +150,13 @@ class Transaction:
     
     """
     self.hash = SHA256.new(buf[:32])
-    print(self.hash)
     offset = 32
     num_in = struct.unpack_from('B', buf, offset)[0]
-    print('num in: ', num_in)
     offset += 1
     self.input = []
-
     for i in range(num_in):
-      self.input.append(Transaction.Input.unpack(buf, offset))
+      inp = Transaction.Input.unpack(buf, offset)
+      self.input.append(inp)
       offset += 290
       
     num_out = struct.unpack_from('B', buf, offset)[0]
@@ -323,7 +325,7 @@ class Transaction:
       n = struct.unpack_from('B', buf, offset)[0]
       offset += 1
       key = buf[offset:offset+450]
-      pubKey = RSA.importKey(buf[offset:offset+450])
+      pubKey = RSA.importKey(key)
       o = Transaction.Output(value, pubKey)
       o.n = n
       #i.transaction = transaction
@@ -334,15 +336,17 @@ if __name__ == '__main__':
   from keystore import KeyStore
   from Crypto.PublicKey import RSA
   otherKey = RSA.generate(2048)
+  myKey = RSA.generate(2048)
   from TransactionManager.coinbase import CoinBase
-  c = CoinBase()
-  t = Transaction()
+  c = CoinBase(owner=myKey)
+  c.finish_transaction()
+  t = Transaction(owner=myKey)
 
   t.add_output(Transaction.Output(20, otherKey.publickey()))
   t.finish_transaction()
   time.sleep(10)
   
-  t = Transaction()
+  t = Transaction(owner=myKey)
 
   t.add_output(Transaction.Output(12, otherKey.publickey()))
   t.finish_transaction()

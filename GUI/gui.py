@@ -1,6 +1,9 @@
 from tkinter import *
+from tkinter import messagebox
 from tkinter.ttk import Button, Style
-
+from MiningManager.miningmanager import Miner
+from P2P.client_manager import P2PClientManager
+from TransactionManager.transaction import Transaction
 
 class PyCoin(Frame):
 
@@ -11,6 +14,7 @@ class PyCoin(Frame):
         self.parent = parent
         self.initApp()
         self.setupGUI()
+        
 
     def initApp(self):
         #Connect Here
@@ -81,9 +85,12 @@ class PyCoin(Frame):
             result = messagebox.askyesno("Send Confirmation", 'Sending {} BitCoins to reciever:\n {}'.format(sendAmt, recvKey))
 
             if result == True:
-                 print('Sending {} BitCoins to reciever:\n {}'.format(sendAmt, recvKey))
+              print('Sending {} BitCoins to reciever:\n {}'.format(sendAmt, recvKey))
+              t = Transaction()
+              t.add_output(Transaction.Output(sendAmt, recvKey))
+              t.finish_transaction()
             else:
-                None
+              None
             self.amountBox.delete(0,END)
            
         

@@ -12,3 +12,5 @@ class Message:
   
   # sent to remove a client from the peer list
   REMOVE = b'REMOVE'
+  
+  NEW_BLOCK = b'NEW_BLOCK'
