@@ -185,7 +185,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
     elif message == Message.NEW_BLOCK:
       from BlockManager.block import Block
       block = self.request.recv(2048)
-      b = Block()
+      b = Block(bytearray())
       b.unpack(block)
       if not b.verify():
         raise Exception('Block invalid!')
