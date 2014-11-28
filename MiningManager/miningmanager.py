@@ -5,7 +5,7 @@ from P2P.messages import Message
 from BlockManager.block import Block
 from TransactionManager.coinbase import CoinBase
 from P2P.client_manager import P2PClientManager
-import copy
+import copy, threading
 
 log = logging.getLogger(__name__)
 log.setLevel(LOG_LEVEL)
@@ -24,17 +24,22 @@ class Miner:
     self.client = P2PClientManager.getClient()
     self.client.subscribe(Message.NEW_BLOCK, self.handle_new_block)
     self.client.subscribe(Message.NEW_TRANSACTION, self.handle_new_transaction)
+    self.mining_thread = None
 
   def handle_new_transaction(self, trans):
     self.transactions.append(trans)
     log.info('Received new transaction')
-    if len(self.transactions) > 1:
-      result = self.solve_proof_of_work()
-      if result:
-        log.info('Block solution found!, %d', self.b.nonce)
-        c = CoinBase()
-        self.b.transactions.append(c)
-        self.client.broadcast_block(self.b.pack())
+    if len(self.transactions) > 2:
+      self.mining_thread = threading.Thread(target=self.solve_on_thread)
+      self.mining_thread.start()
+        
+  def solve_on_thread(self):
+    result = self.solve_proof_of_work()
+    if result:
+      log.info('Block solution found!, %d', self.b.nonce)
+      c = CoinBase()
+      self.b.transactions.append(c)
+      self.client.broadcast_block(self.b.pack())
       
   def handle_new_block(self, block):
     self.start_over = True

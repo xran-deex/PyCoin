@@ -9,7 +9,7 @@ class P2PServer:
   
   HOST = ''                 # Symbolic name meaning all available interfaces
   PORT = 50007              # Arbitrary non-privileged port
-  DEBUG = True
+  DEBUG = False
   
   def __init__(self):
     self.peer_list = []

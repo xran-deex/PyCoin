@@ -4,6 +4,8 @@ from tkinter.ttk import Button, Style
 from MiningManager.miningmanager import Miner
 from P2P.client_manager import P2PClientManager
 from TransactionManager.transaction import Transaction
+import threading
+from keystore import KeyStore
 
 class PyCoin(Frame):
 
@@ -12,17 +14,27 @@ class PyCoin(Frame):
     def __init__(self, parent):
         Frame.__init__(self, parent)
         self.parent = parent
+        self.parent.protocol("WM_DELETE_WINDOW", self.quit)
         self.initApp()
         self.setupGUI()
         
+    def quit(self):
+      print('quiting...')
+      P2PClientManager.deleteClient()
+      #self.miner.stop()
+      self.parent.destroy()
 
     def initApp(self):
         #Connect Here
-
+        t = threading.Thread(target=self.start_miner)
+        t.start()
         #Get balance, Save to variable below
-        PyCoin.coin_balance = 983
-        
+        PyCoin.coin_balance = KeyStore.get_balance()
+        print(KeyStore.getPublicKey())
         print("App initiated")
+        
+    def start_miner(self):
+      self.miner = Miner()
     
     def setupGUI(self):
       

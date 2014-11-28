@@ -41,3 +41,15 @@ class KeyStore:
       
     return public
   
+  def get_balance(pubKey=None):
+    from db import DB
+    db = DB()
+    if pubKey:
+      unspent = db.getUnspentOutputs(pubKey)
+    else:
+      unspent = db.getUnspentOutputs(KeyStore.getPublicKey())
+    balance = 0
+    for o in unspent:
+      balance += o.value
+    return balance
+    
