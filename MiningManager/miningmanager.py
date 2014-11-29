@@ -51,7 +51,9 @@ class Miner:
     hash = SHA256.new()
     
     #self.b.computeMerkleRoot()
-    self.b.transactions = copy.copy(self.transactions)
+    for t in self.transactions:
+      self.b.add_transaction(t)
+      
     # create an array of target-length bytes
     target = bytes(self.b.target)
     hash.update(self.b.pack())

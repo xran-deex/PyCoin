@@ -41,7 +41,7 @@ class Block:
     b.extend(struct.pack('B', self.target)) #1
     b.extend(struct.pack('B', len(self.transactions))) #1
     for t in self.transactions:
-      b.extend(t) # 32
+      b.extend(t.hash_transaction()) # 32
     return b
   
   def unpack(self, buf):
