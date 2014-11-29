@@ -39,7 +39,7 @@ class Block:
     b.extend(self.HashPrevBlock) #32
     b.extend(struct.pack('I', self.nonce)) #4
     b.extend(struct.pack('B', self.target)) #1
-    b.extend(struct.pack('B', len(self.transactionsList))) #1
+    b.extend(struct.pack('B', len(self.transactionList))) #1
     for t in self.transactionList:
       b.extend(t.hash_transaction()) # 32
     return b
