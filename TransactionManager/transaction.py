@@ -41,7 +41,7 @@ class Transaction:
     val = 0
     for o in outputs:
       val += o.value
-      inp = Transaction.Input(o.value, o.transaction, o.n, owner=self.owner)
+      inp = Transaction.Input(o.value, o.transaction, o.n, owner=None, output=o)
       self.input.append(inp)
       #db.removeUnspentOutput(o)
       if val > target_val:
@@ -56,7 +56,7 @@ class Transaction:
     self.output.append(o)
     o.n = len(self.output)
 
-    db.insertUnspentOutput(o, self)
+    # db.insertUnspentOutput(o, self)
     return self
     
   def add_output(self, output):
@@ -68,16 +68,16 @@ class Transaction:
     Returns:
       Self, for use as a factory type builder.
     """
-    log.info('creating output... %d', output.value)
+    log.info('creating output... %d, paying to %s', output.value, output.pubKey)
     self.output.append(output)
     output.n = len(self.output)
     
     # find (and add) the necessary inputs
     self.add_input(output)
 
-    from db import DB
-    db = DB()
-    db.insertUnspentOutput(output, self)
+    #from db import DB
+    #db = DB()
+    #db.insertUnspentOutput(output, self)
     return self
     
   def get_outputs(self):
@@ -110,9 +110,13 @@ class Transaction:
     self.add_output(Transaction.Output(totalIn-totalOut, self.owner.publickey()))
     
   def finish_transaction(self):
+    from db import DB
+    db = DB()
     #self.pay_diff_to_self()
     self.sign_inputs()
     self.store_transaction()
+    for i in self.input:
+      db.removeUnspentOutput(i.output)
     self.broadcast()
     #return self.pack()
     
@@ -180,7 +184,7 @@ class Transaction:
     # find all previous unspent outputs....
     from db import DB
     db = DB()
-    outputs = db.getUnspentOutputs(self.owner.publickey())
+    outputs = db.getUnspentOutputs()
     for o in outputs:
       for i in self.input:
         if i.prev == o.transaction:# and i.n == o.n:
@@ -221,7 +225,7 @@ class Transaction:
       i.n = n
       return i
     
-    def __init__(self, value, prev, n, owner=None):
+    def __init__(self, value, prev, n, owner=None, output=None):
       
       ### TODO: prev needs to eb the hash of the previous transaction
       
@@ -233,6 +237,7 @@ class Transaction:
         self.owner = KeyStore.getPrivateKey()
       else:
         self.owner = owner
+      self.output=output
       
     def __repr__(self):
       return 'Input:' +\
@@ -287,7 +292,8 @@ class Transaction:
       return 'Output:' +\
       '\n#value: ' + str(self.value) +\
       '\npublic key: ' + str(self.pubKey.exportKey()) +\
-      '\ntrans: ' + str(self.transaction)
+      '\ntrans: ' + str(self.transaction) +\
+      '\nn: ' + str(self.n)
         
     def hash_key(self, hex=True):
       hash = SHA256.new()

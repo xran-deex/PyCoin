@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 log.setLevel(LOG_LEVEL)
 
 from Crypto.Hash import SHA256
+import random
 	
 class Miner:
   
@@ -36,6 +37,7 @@ class Miner:
   def solve_on_thread(self):
     result = self.solve_proof_of_work()
     if result:
+      self.transactions = []
       log.info('Block solution found!, %d', self.b.nonce)
       c = CoinBase()
       self.b.transactions.append(c)
@@ -63,6 +65,7 @@ class Miner:
       digest = hash.digest()
       #print(digest[:self.b.target], target)
       if self.start_over:
+        self.start_over = False
         return False
     return True
 

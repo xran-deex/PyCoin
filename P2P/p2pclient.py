@@ -178,6 +178,9 @@ class TCPHandler(socketserver.BaseRequestHandler):
         raise Exception('Transaction invalid!')
       else:
         log.info('Transaction has been verified')
+      from db import DB
+      d = db.DB()
+      d.insertTransaction(t)
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
       client.queue_item_received(Message.NEW_TRANSACTION, t)

@@ -4,8 +4,12 @@ from tkinter.ttk import Button, Style
 from MiningManager.miningmanager import Miner
 from P2P.client_manager import P2PClientManager
 from TransactionManager.transaction import Transaction
-import threading
+from TransactionManager.coinbase import CoinBase
+import threading, random
 from keystore import KeyStore
+from Crypto.PublicKey import RSA
+from P2P.messages import Message
+from db import DB
 
 class PyCoin(Frame):
 
@@ -15,6 +19,8 @@ class PyCoin(Frame):
         Frame.__init__(self, parent)
         self.parent = parent
         self.parent.protocol("WM_DELETE_WINDOW", self.quit)
+        self.coin_balance = StringVar(self.parent, '0')
+        d = DB()
         self.initApp()
         self.setupGUI()
         
@@ -26,15 +32,23 @@ class PyCoin(Frame):
 
     def initApp(self):
         #Connect Here
+        client = P2PClientManager.getClient(port=random.randint(40000, 60000))
+        client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
         t = threading.Thread(target=self.start_miner)
         t.start()
+        c = CoinBase()
+        c.finish_transaction()
         #Get balance, Save to variable below
-        PyCoin.coin_balance = KeyStore.get_balance()
-        print(KeyStore.getPublicKey())
+        self.coin_balance.set(str(KeyStore.get_balance()))
+        print(KeyStore.getPublicKey().exportKey())
         print("App initiated")
         
     def start_miner(self):
       self.miner = Miner()
+
+    def update_balance(self, t):
+
+        self.coin_balance.set(str(KeyStore.get_balance()))
     
     def setupGUI(self):
       
@@ -49,9 +63,12 @@ class PyCoin(Frame):
         lf2.pack(side=TOP, fill="both", expand="yes", padx=7, pady=7)
         
         #Labels for Bitcoin balance
-        self.balance = Label(lf2, text="BitCoin Balance:\n" + str(PyCoin.coin_balance),
+        self.balanceHeading = Label(lf2, text="BitCoin Balance:",
                              font = "Helvetica 20")
+        self.balanceHeading.pack()
+        self.balance = Label(lf2, textvariable=self.coin_balance, font="Helvetica 20")
         self.balance.pack()
+
         
         
         #Label and Text field for BitCoin Amount
@@ -87,8 +104,21 @@ class PyCoin(Frame):
     #Send Button Callback Function
     def sendCoins(self):
         sendAmt = self.amountBox.get()      	    #Amount to send
-        recvKey = self.recieverKey.get("1.0",END)   #recievers public key
-        
+        recvKey = self.recieverKey.get("1.0",'end-1c')   #recievers public key
+        temp = ''
+        skip = False
+        for i in range(len(recvKey)):
+            if recvKey[i] == '\\' and recvKey[i+1] == 'n':
+                temp += '\n'
+                skip = True
+            elif skip:
+                skip = False
+                continue
+            else:
+                temp += recvKey[i]
+
+        recvPubKey = RSA.importKey(bytes(temp, 'ascii'))
+
         if not sendAmt:
             messagebox.showwarning("Warning", "Please enter a BitCoin amount.")
         elif len(recvKey) <= 1:
@@ -99,7 +129,7 @@ class PyCoin(Frame):
             if result == True:
               print('Sending {} BitCoins to reciever:\n {}'.format(sendAmt, recvKey))
               t = Transaction()
-              t.add_output(Transaction.Output(sendAmt, recvKey))
+              t.add_output(Transaction.Output(int(sendAmt), recvPubKey))
               t.finish_transaction()
             else:
               None

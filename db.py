@@ -84,7 +84,6 @@ class DB:
     confirmed = 1
     if type(out) is Transaction.Output:
       confirmed = 0
-
     self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), trans.hash_transaction(), out.n, confirmed, out.pack(bytearray())])
       
     self.conn.commit()
@@ -95,12 +94,16 @@ class DB:
     Param:
       trans: (Transaction) the transaction to be inserted
     """
+    for o in trans.output:
+      self.insertUnspentOutput(o, trans)
     t = trans.pack()
 
     self.conn.execute('insert into TRANSACTIONS (ID, TRANS) values (?, ?)', [trans.hash_transaction(), t])
     self.conn.commit()
     
   def removeUnspentOutput(self, out):
+    if not out:
+      return
     log.info('removing...%d, %s', out.value, out.hash_output())
     self.conn.execute('delete from INPUT_OUTPUTS WHERE ID = ?', [out.hash_output()])
     self.conn.commit()
