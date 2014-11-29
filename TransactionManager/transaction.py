@@ -68,7 +68,7 @@ class Transaction:
     Returns:
       Self, for use as a factory type builder.
     """
-    log.info('creating output... %d, paying to %s', output.value, output.pubKey)
+    log.info('creating output... %d, paying to %s', output.value, output.PublicKey)
     self.output.append(output)
     output.n = len(self.output)
     
