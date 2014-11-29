@@ -19,6 +19,8 @@ class Block:
     self.target = 3
     
   def add_transaction(self, trans):
+    if type(trans) != Transaction:
+      raise Exception('Not a Transaction object!')
     self.transactionList.append(trans)
     
   def computeMerkleRoot(self):

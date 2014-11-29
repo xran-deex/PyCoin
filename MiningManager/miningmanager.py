@@ -6,6 +6,7 @@ from BlockManager.block import Block
 from TransactionManager.coinbase import CoinBase
 from P2P.client_manager import P2PClientManager
 import copy, threading
+from TransactionManager.transaction import Transaction
 
 log = logging.getLogger(__name__)
 log.setLevel(LOG_LEVEL)
@@ -28,6 +29,8 @@ class Miner:
     self.mining_thread = None
 
   def handle_new_transaction(self, trans):
+    if type(trans) != Transaction:
+      raise Exception('Not a Transaction object!')
     self.transactions.append(trans)
     log.info('Received new transaction')
     if len(self.transactions) > 2:
@@ -40,7 +43,7 @@ class Miner:
       self.transactions = []
       log.info('Block solution found!, %d', self.b.nonce)
       c = CoinBase()
-      self.b.transactions.append(c)
+      self.b.add_transaction(c)
       self.client.broadcast_block(self.b.pack())
       
   def handle_new_block(self, block):
@@ -53,7 +56,7 @@ class Miner:
     #self.b.computeMerkleRoot()
     for t in self.transactions:
       self.b.add_transaction(t)
-      
+
     # create an array of target-length bytes
     target = bytes(self.b.target)
     hash.update(self.b.pack())

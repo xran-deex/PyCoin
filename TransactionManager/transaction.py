@@ -91,7 +91,7 @@ class Transaction:
     try:
       port = random.randint(40000, 60000)
       p2pclient = P2PClientManager.getClient(port)
-      p2pclient.broadcast_transaction(self.pack(withSig=True))
+      p2pclient.broadcast_transaction(self)
     except Exception as e:
       log.warning(e)
     

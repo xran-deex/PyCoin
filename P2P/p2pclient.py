@@ -124,7 +124,7 @@ class P2PClient(object):
   
   def broadcast_transaction(self, t):
     self.notify_subscribers(Message.NEW_TRANSACTION, t)
-    self.send_message(Message.NEW_TRANSACTION, t)
+    self.send_message(Message.NEW_TRANSACTION, t.pack(withSig=True))
     
   def broadcast_block(self, b):
     self.notify_subscribers(Message.NEW_BLOCK, b) # fix later
@@ -178,6 +178,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
         raise Exception('Transaction invalid!')
       else:
         log.info('Transaction has been verified')
+      print(t)
       from db import DB
       d = DB()
       d.insertTransaction(t)
