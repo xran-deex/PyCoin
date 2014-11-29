@@ -16,10 +16,10 @@ class Block:
     #self.target = random.getrandbits(64)
     self.nonce = random.getrandbits(32)
     self.transactionList = []
-    self.target = 3
+    self.target = 2
     
   def add_transaction(self, trans):
-    if type(trans) != Transaction:
+    if not isinstance(trans, Transaction):
       raise Exception('Not a Transaction object!')
     self.transactionList.append(trans)
     

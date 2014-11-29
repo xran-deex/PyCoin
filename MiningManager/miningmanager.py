@@ -29,11 +29,11 @@ class Miner:
     self.mining_thread = None
 
   def handle_new_transaction(self, trans):
-    if type(trans) != Transaction:
+    if not isinstance(trans, Transaction):
       raise Exception('Not a Transaction object!')
     self.transactions.append(trans)
     log.info('Received new transaction')
-    if len(self.transactions) > 2:
+    if len(self.transactions) > 4:
       self.mining_thread = threading.Thread(target=self.solve_on_thread)
       self.mining_thread.start()
         
