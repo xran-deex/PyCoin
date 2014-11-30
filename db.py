@@ -92,7 +92,6 @@ class DB:
     self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), out.transaction, out.n, 0, out.pack(bytearray())])
       
     self.conn.commit()
-    print('notifying subscribers')
     self.notify_subscribers()
     
   def insertTransaction(self, trans):
@@ -162,7 +161,6 @@ class DB:
     
   def notify_subscribers(self):
     for callback in self.subscribers:
-      print('notifying subscribers')
       callback()
     
 if __name__ == '__main__':

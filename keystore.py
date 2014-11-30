@@ -49,7 +49,6 @@ class KeyStore:
     else:
       unspent = db.getUnspentOutputs(KeyStore.getPublicKey())
     balance = 0
-    print(unspent)
     for o in unspent:
       balance += o.value
     return balance
