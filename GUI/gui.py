@@ -20,7 +20,7 @@ class PyCoin(Frame):
         self.parent = parent
         self.parent.protocol("WM_DELETE_WINDOW", self.quit)
         self.coin_balance = StringVar(self.parent, '0')
-        d = DB()
+        self.db = DB.getDB()
         self.initApp()
         self.setupGUI()
         
@@ -33,10 +33,11 @@ class PyCoin(Frame):
     def initApp(self):
         #Connect Here
         client = P2PClientManager.getClient(port=random.randint(40000, 60000))
-        client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
+        #client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
+        self.db.subscribe(self.update_balance)
         t = threading.Thread(target=self.start_miner)
         t.start()
-        c = CoinBase()
+        c = CoinBase(owner=KeyStore.getPrivateKey())
         c.finish_transaction()
         #Get balance, Save to variable below
         self.coin_balance.set(str(KeyStore.get_balance()))
@@ -46,7 +47,7 @@ class PyCoin(Frame):
     def start_miner(self):
       self.miner = Miner()
 
-    def update_balance(self, t):
+    def update_balance(self):
 
         self.coin_balance.set(str(KeyStore.get_balance()))
     
@@ -126,13 +127,12 @@ class PyCoin(Frame):
         else:
             result = messagebox.askyesno("Send Confirmation", 'Sending {} BitCoins to reciever:\n {}'.format(sendAmt, recvKey))
 
-            if result == True:
+            if result:
               print('Sending {} BitCoins to reciever:\n {}'.format(sendAmt, recvKey))
-              t = Transaction()
+              t = Transaction(owner=KeyStore.getPrivateKey())
               t.add_output(Transaction.Output(int(sendAmt), recvPubKey))
               t.finish_transaction()
-            else:
-              None
+
             self.amountBox.delete(0,END)
            
         

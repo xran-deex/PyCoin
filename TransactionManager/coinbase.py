@@ -16,9 +16,10 @@ class CoinBase(Transaction):
   COINBASE_REWARD = 100
   
   def __init__(self, owner=None):
-    Transaction.__init__(self)
+    Transaction.__init__(self, owner)
     log.info('Creating a CoinBase transaction')
     if not owner:
+      raise Exception()
       self.owner = keystore.KeyStore.getPrivateKey()
     else:
       self.owner = owner
@@ -52,7 +53,7 @@ class CoinBase(Transaction):
     log.info('creating output... %d', output.value)
     self.output.append(output)
     output.n = len(self.output)
-    #output.transaction = self.hash_transaction()
+    output.transaction = self.hash_transaction()
 
     #from db import DB
     #db = DB()

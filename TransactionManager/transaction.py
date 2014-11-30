@@ -23,6 +23,7 @@ class Transaction:
     self.output = []
     self.hash = None
     if not owner:
+      raise Exception()
       self.owner = KeyStore.getPrivateKey()
     else:
       self.owner = owner
@@ -34,8 +35,9 @@ class Transaction:
     
     # find all previous unspent outputs....
     from db import DB
-    db = DB()
+    db = DB.getDB()
     outputs = db.getUnspentOutputs(self.owner.publickey())
+    #print(outputs)
     
     # find enough outputs to total the requested input...
     val = 0
@@ -52,6 +54,7 @@ class Transaction:
       raise Exception('Output exceeds input!')
     # 'manually' add the change as an output back to ourselves
     o = Transaction.Output(diff, self.owner.publickey())
+    print('creating output to self...')
     self.output.append(o)
     o.n = len(self.output)
 
@@ -66,7 +69,7 @@ class Transaction:
     Returns:
       Self, for use as a factory type builder.
     """
-    log.info('creating output... %d, paying to %s', output.value, output.pubKey)
+    #log.info('creating output... %d, paying to %s', output.value, output.pubKey.exportKey())
     self.output.append(output)
     output.n = len(self.output)
     
@@ -110,6 +113,7 @@ class Transaction:
     self.add_hash_to_outputs()
     self.store_transaction()
     self.broadcast()
+    self.verify()
     
   def add_hash_to_outputs(self):
     for o in self.output:
@@ -117,11 +121,11 @@ class Transaction:
     
   def sign_inputs(self):
     for i in self.input:
-      i.apply_signature(self.hash_transaction())
+      i.apply_signature(i.prev)
     
   def store_transaction(self):
     from db import DB
-    db = DB()
+    db = DB.getDB()
     db.insertTransaction(self)
     
   def pack(self, withSig=False):
@@ -178,21 +182,23 @@ class Transaction:
   def verify(self):
     # find all previous unspent outputs....
     from db import DB
-    db = DB()
-    outputs = db.getUnspentOutputs(self.owner)
+    db = DB.getDB()
+    log.info('Verifying transaction...')
+    if self.input[0].prev == bytes(struct.pack('I', 0) * 8):
+      log.info('Coinbase transaction verified.')
+      return True
+    outputs = db.getUnspentOutputs()
     for o in outputs:
       for i in self.input:
-        
         if i.prev == o.transaction and i.n == o.n:
-          print(i, o)
           if not self.check_sig(i.signature, o.pubKey, o.transaction):
+            log.warning('Transaction invalid!')
             return False
-          print('removing output...')
+          log.info('removing output...')
           db.removeUnspentOutput(o) # output was verified, remove it
     return True
     
   def check_sig(self, signature, pubKey, trans):
-    #trans = b'MESSAGE'
     message = SHA256.new(trans)
     verifier = PKCS1_v1_5.new(pubKey)
     verified = verifier.verify(message, signature)
@@ -225,7 +231,6 @@ class Transaction:
       return i
     
     def __init__(self, value, prev, n, owner=None, output=None):
-
       # sanity checks
       if len(prev) != 32:
         raise Exception('Previous transaction hash invalid length!')
@@ -234,6 +239,7 @@ class Transaction:
       self.n = n
       self.signature = None
       if not owner:
+        raise Exception()
         self.owner = KeyStore.getPrivateKey()
       else:
         self.owner = owner
@@ -344,13 +350,13 @@ if __name__ == '__main__':
   from TransactionManager.coinbase import CoinBase
   c = CoinBase(owner=myKey)
   c.finish_transaction()
-  print('Verified: ', c.verify())
+  #print('Verified: ', c.verify())
   t = Transaction(owner=myKey)
 
-  t.add_output(Transaction.Output(20, otherKey.publickey()))
+  t.add_output(Transaction.Output(20, myKey.publickey()))
   #t.input[0].owner = otherKey
   t.finish_transaction()
-  print('Verified: ', t.verify())
+  #print('Verified: ', t.verify())
   #time.sleep(10)
   
   # t = Transaction(owner=myKey)

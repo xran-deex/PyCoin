@@ -55,6 +55,7 @@ class P2PClient(object):
         
         # make sure we don't send the transaction back to ourselves.
         if self.peer_is_self(peer):
+          print('Not sending to self')
           continue
         
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -174,12 +175,13 @@ class TCPHandler(socketserver.BaseRequestHandler):
       t = Transaction()
       t.unpack(trans)
       if not t.verify():
+        log.warn('Invalid transaction!')
         raise Exception('Transaction invalid!')
       else:
         log.info('Transaction has been verified')
       print(t)
       from db import DB
-      d = DB()
+      d = DB.getDB()
       d.insertTransaction(t)
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()

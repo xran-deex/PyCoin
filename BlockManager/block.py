@@ -32,7 +32,7 @@ class Block:
     return h.digest()
     
   def getPreviousBlockHash(self):
-    d = db.DB()
+    d = db.DB.getDB()
     return d.getLatestBlock()[0]
   
   def pack(self):
