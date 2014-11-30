@@ -1,15 +1,15 @@
 from tkinter import *
 from tkinter import messagebox
 from tkinter.ttk import Button, Style
-from MiningManager.miningmanager import Miner
-from P2P.client_manager import P2PClientManager
-from TransactionManager.transaction import Transaction
-from TransactionManager.coinbase import CoinBase
+#from MiningManager.miningmanager import Miner
+#from P2P.client_manager import P2PClientManager
+#from TransactionManager.transaction import Transaction
+#from TransactionManager.coinbase import CoinBase
 import threading, random
-from keystore import KeyStore
+#from keystore import KeyStore
 from Crypto.PublicKey import RSA
-from P2P.messages import Message
-from db import DB
+#from P2P.messages import Message
+#from db import DB
 
 class PyCoin(Frame):
 

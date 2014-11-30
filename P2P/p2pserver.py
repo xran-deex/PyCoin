@@ -1,6 +1,6 @@
 import socket, threading, pickle
 #from TransactionManager.transaction import *
-from P2P.messages import Message
+#from P2P.messages import Message
 #from globals import DEBUG
 from struct import *
 
