@@ -1,5 +1,9 @@
 from P2P.p2pclient import *
 from P2P.messages import Message
+import logging
+
+log = logging.getLogger(__name__)
+log.setLevel(LOG_LEVEL)
 
 class P2PClientManager:
   """ Use this class to gain access to the single P2PClient object """
@@ -18,6 +22,8 @@ class P2PClientManager:
     return P2PClientManager.p2p
     
   def deleteClient():
+    log.info('Deleting client...')
+    P2PClientManager.p2p.stop()
     P2PClientManager.p2p = None
     
 if __name__ == '__main__':

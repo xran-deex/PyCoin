@@ -41,9 +41,8 @@ class Transaction:
     val = 0
     for o in outputs:
       val += o.value
-      inp = Transaction.Input(o.value, o.transaction, o.n, owner=None, output=o)
+      inp = Transaction.Input(o.value, o.transaction, o.n, owner=self.owner, output=o)
       self.input.append(inp)
-      #db.removeUnspentOutput(o)
       if val > target_val:
         break
     # compute change and create a new output to ourselves.
@@ -56,7 +55,6 @@ class Transaction:
     self.output.append(o)
     o.n = len(self.output)
 
-    # db.insertUnspentOutput(o, self)
     return self
     
   def add_output(self, output):
@@ -74,10 +72,7 @@ class Transaction:
     
     # find (and add) the necessary inputs
     self.add_input(output)
-
-    #from db import DB
-    #db = DB()
-    #db.insertUnspentOutput(output, self)
+    
     return self
     
   def get_outputs(self):
@@ -103,22 +98,22 @@ class Transaction:
     self.hash.update(self.pack())
     return self.hash.digest()
     
-  def pay_diff_to_self(self):
-    totalIn = sum([x.value for x in self.input])
-    totalOut = sum([x.value for x in self.output])
-    print(totalIn, totalOut, totalIn-totalOut)
-    self.add_output(Transaction.Output(totalIn-totalOut, self.owner.publickey()))
+  # def pay_diff_to_self(self):
+  #   totalIn = sum([x.value for x in self.input])
+  #   totalOut = sum([x.value for x in self.output])
+  #   print(totalIn, totalOut, totalIn-totalOut)
+  #   self.add_output(Transaction.Output(totalIn-totalOut, self.owner.publickey()))
     
   def finish_transaction(self):
-    from db import DB
-    db = DB()
-    #self.pay_diff_to_self()
+
     self.sign_inputs()
+    self.add_hash_to_outputs()
     self.store_transaction()
-    for i in self.input:
-      db.removeUnspentOutput(i.output)
     self.broadcast()
-    #return self.pack()
+    
+  def add_hash_to_outputs(self):
+    for o in self.output:
+      o.transaction = self.hash_transaction()
     
   def sign_inputs(self):
     for i in self.input:
@@ -161,7 +156,7 @@ class Transaction:
     for i in range(num_in):
       inp = Transaction.Input.unpack(buf, offset)
       self.input.append(inp)
-      offset += 290
+      offset += Transaction.Input.PACKED_SIZE
       
     num_out = struct.unpack_from('B', buf, offset)[0]
     offset += 1
@@ -170,24 +165,26 @@ class Transaction:
     for i in range(num_out):
       out = Transaction.Output.unpack(buf, offset)
       self.output.append(out)
-      offset += 455
+      offset += Transaction.Output.PACKED_SIZE
     
     
   def __repr__(self):
     return 'Transaction:' +\
-    '\n#vin: ' + str(len(self.input)) +\
+    '\nvin#: ' + str(len(self.input)) +\
     '\nvin[]: ' + str(self.input) +\
-    '\n#vout: ' + str(len(self.output)) +\
+    '\nvout#: ' + str(len(self.output)) +\
     '\nvout[]: ' + str(self.output)
     
   def verify(self):
     # find all previous unspent outputs....
     from db import DB
     db = DB()
-    outputs = db.getUnspentOutputs()
+    outputs = db.getUnspentOutputs(self.owner)
     for o in outputs:
       for i in self.input:
-        if i.prev == o.transaction:# and i.n == o.n:
+        
+        if i.prev == o.transaction and i.n == o.n:
+          print(i, o)
           if not self.check_sig(i.signature, o.pubKey, o.transaction):
             return False
           print('removing output...')
@@ -195,7 +192,7 @@ class Transaction:
     return True
     
   def check_sig(self, signature, pubKey, trans):
-    trans = b'MESSAGE'
+    #trans = b'MESSAGE'
     message = SHA256.new(trans)
     verifier = PKCS1_v1_5.new(pubKey)
     verified = verifier.verify(message, signature)
@@ -210,6 +207,8 @@ class Transaction:
       signature: the digital signature of the entity spending bitcoins
       n: the nth input in a transaction
     """
+    
+    PACKED_SIZE = 290
     
     @staticmethod
     def unpack(buf, offset):
@@ -226,9 +225,10 @@ class Transaction:
       return i
     
     def __init__(self, value, prev, n, owner=None, output=None):
-      
-      ### TODO: prev needs to eb the hash of the previous transaction
-      
+
+      # sanity checks
+      if len(prev) != 32:
+        raise Exception('Previous transaction hash invalid length!')
       self.value = value
       self.prev = prev
       self.n = n
@@ -241,7 +241,7 @@ class Transaction:
       
     def __repr__(self):
       return 'Input:' +\
-      '\n#value: ' + str(self.value) +\
+      '\nvalue: ' + str(self.value) +\
       '\nprev trans: ' + str(self.prev) +\
       '\nn: ' + str(self.n) +\
       '\nsignature: ' + str(self.signature)
@@ -252,9 +252,6 @@ class Transaction:
       Param: trans_hash - the hash of the current transaction
       """
       # sign the input
-      
-      ## !!! Hash isn't working, let's just sign anything for now
-      trans_hash = b'MESSAGE'
       message = SHA256.new(trans_hash)
       signer = PKCS1_v1_5.new(self.owner)
       self.signature = signer.sign(message)
@@ -277,6 +274,7 @@ class Transaction:
     """
     
     #_n = 0   # the output count
+    PACKED_SIZE = 455
     
     def __init__(self, value, pubKey):
       self.value = value
@@ -290,7 +288,7 @@ class Transaction:
       
     def __repr__(self):
       return 'Output:' +\
-      '\n#value: ' + str(self.value) +\
+      '\nvalue: ' + str(self.value) +\
       '\npublic key: ' + str(self.pubKey.exportKey()) +\
       '\ntrans: ' + str(self.transaction) +\
       '\nn: ' + str(self.n)
@@ -313,8 +311,6 @@ class Transaction:
         return hash.digest()
         
     def pack(self, buf):
-      #print('transaction hash length: ', len(self.transaction))
-      #buf.extend(self.transaction)
       buf.extend(struct.pack('I', self.value))
       #buf.extend(struct.pack('I', self.timestamp))
       buf.extend(struct.pack('B', self.n))
@@ -341,21 +337,27 @@ if __name__ == '__main__':
   import sys, time
   from keystore import KeyStore
   from Crypto.PublicKey import RSA
-  otherKey = RSA.generate(2048)
-  myKey = RSA.generate(2048)
+  from Crypto import Random
+  r = Random.new().read
+  otherKey = RSA.generate(2048, r)
+  myKey = RSA.generate(2048, r)
   from TransactionManager.coinbase import CoinBase
   c = CoinBase(owner=myKey)
   c.finish_transaction()
+  print('Verified: ', c.verify())
   t = Transaction(owner=myKey)
 
   t.add_output(Transaction.Output(20, otherKey.publickey()))
+  #t.input[0].owner = otherKey
   t.finish_transaction()
-  time.sleep(10)
+  print('Verified: ', t.verify())
+  #time.sleep(10)
   
-  t = Transaction(owner=myKey)
+  # t = Transaction(owner=myKey)
 
-  t.add_output(Transaction.Output(12, otherKey.publickey()))
-  t.finish_transaction()
+  # t.add_output(Transaction.Output(12, otherKey.publickey()))
+  # t.finish_transaction()
+  # print('Verified: ', t.verify())
   # c = CoinBase()
   # t = Transaction()
   # t.add_output(Transaction.Output(20, otherKey.publickey()))

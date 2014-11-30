@@ -1,9 +1,6 @@
-import socket, threading, pickle
-#from TransactionManager.transaction import *
+import socket, threading, pickle, signal
 from P2P.messages import Message
-#from globals import DEBUG
 from struct import *
-
 
 class P2PServer:
   
@@ -16,7 +13,11 @@ class P2PServer:
     print('Starting server...')
     self.t = threading.Thread(target=self.start_server)
     self.t.start()
-    #self.start_server()
+    signal.signal( signal.SIGINT, self.signal_handler) #register for keyboard interrupt signal
+    
+  def signal_handler(self, signal, frame):
+    ''' Gracefully handle shudown by listening for ctrl + c '''
+    self.shutdown_server()
     
   def start_server(self):
     self.run_server = True
@@ -66,7 +67,6 @@ class P2PServer:
     self.peer_list.remove(toBeRemoved)
     print('Peer list: ', self.peer_list)
     if len(self.peer_list) == 0 and P2PServer.DEBUG:
-      self.run_server = False
       self.shutdown_server()
     #else:
       #self.deliver_peer_list(conn)
@@ -77,26 +77,29 @@ class P2PServer:
   def handle_message(self, peer, conn):
     message = conn.recv(1024).strip()
     print('Received message', message)
-    while message and message != Message.QUIT:
-      
-      if message == Message.ADD:
-        print(peer)
-        port = conn.recv(1024).strip()
-        port = unpack('I', port)[0]
-        self.add_peer(peer[0], port)
-        self.deliver_peer_list(conn)
-        self.send_to_peers(pickle.dumps(list(self.peer_list)), port, Message.ADD)
+    try:
+      while message and message != Message.QUIT:
         
-      # elif message == Message.NEW_TRANSACTION:
-      #   port = message[15:]
-      #   payload = conn.recv(1024).strip()
-      #   self.send_to_peers(payload, port)
-        
-      elif message[:6] == Message.REMOVE:
-        self.remove_peer(peer, conn)
-        
-      message = conn.recv(1024).strip()
-      print('Received message', message)
+        if message == Message.ADD:
+          print(peer)
+          port = conn.recv(1024).strip()
+          port = unpack('I', port)[0]
+          self.add_peer(peer[0], port)
+          self.deliver_peer_list(conn)
+          self.send_to_peers(pickle.dumps(list(self.peer_list)), port, Message.ADD)
+          
+        # elif message == Message.NEW_TRANSACTION:
+        #   port = message[15:]
+        #   payload = conn.recv(1024).strip()
+        #   self.send_to_peers(payload, port)
+          
+        elif message[:6] == Message.REMOVE:
+          self.remove_peer(peer, conn)
+          
+        message = conn.recv(1024).strip()
+        print('Received message', message)
+    except (KeyboardInterrupt):
+      print('Caught keyboard interrupt.')
     self.remove_peer(peer, conn)
     conn.close()
           

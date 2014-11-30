@@ -31,14 +31,10 @@ class CoinBase(Transaction):
     i.coinbase = random.getrandbits(32)
     self.add_input(i)
     out = Transaction.Output(CoinBase.COINBASE_REWARD, self.owner.publickey())
-    #out.transaction = self.hash_zero()
     self.add_output(out)
     
   def get_zero_bytes(self):
-    b = bytearray()
-    for i in range(8):
-      b.extend(struct.pack('I', 0))
-    return b
+    return bytes(struct.pack('I', 0) * 8)
     
   def add_input(self, i):
     ''' coinbase transactions only have outputs. input is determined.'''

@@ -80,11 +80,11 @@ class DB:
     Param:
       out: (Transaction.Output) the output to be inserted
     """
-    id = out.hash_key()
-    confirmed = 1
-    if type(out) is Transaction.Output:
-      confirmed = 0
-    self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), trans.hash_transaction(), out.n, confirmed, out.pack(bytearray())])
+    # id = out.hash_key()
+    # confirmed = 1
+    # if type(out) is Transaction.Output:
+    #   confirmed = 0
+    self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), out.transaction, out.n, 0, out.pack(bytearray())])
       
     self.conn.commit()
     

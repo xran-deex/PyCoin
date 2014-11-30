@@ -36,8 +36,8 @@ class PyCoin(Frame):
         client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
         t = threading.Thread(target=self.start_miner)
         t.start()
-        #c = CoinBase()
-        #c.finish_transaction()
+        c = CoinBase()
+        c.finish_transaction()
         #Get balance, Save to variable below
         self.coin_balance.set(str(KeyStore.get_balance()))
         print(KeyStore.getPublicKey().exportKey())

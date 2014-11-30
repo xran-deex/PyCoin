@@ -137,7 +137,7 @@ class P2PClient(object):
       for t in self.trans_queue:
         self.send_message(Message.NEW_TRANSACTION, t)
       
-  def __del__(self):
+  def stop(self):
     log.info('client dying...')
     try:
       self.p2pserver.sendall(Message.QUIT)
@@ -147,9 +147,8 @@ class P2PClient(object):
       self.p2pserver.close()
       if self.server:
         self.server.shutdown()
-        print('server dying...')
-      
-  #@classmethod
+        log.info('client server dying...')
+
   def start_server(self):
     if self.server:
       return

@@ -68,7 +68,6 @@ class Miner:
 
       hash.update(self.b.pack())
       digest = hash.digest()
-      #print(digest[:self.b.target], target)
       if self.start_over:
         self.start_over = False
         return False
