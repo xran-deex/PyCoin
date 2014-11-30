@@ -7,7 +7,7 @@ from tkinter.ttk import Button, Style
 #from TransactionManager.coinbase import CoinBase
 import threading, random
 #from keystore import KeyStore
-from Crypto.PublicKey import RSA
+#from Crypto.PublicKey import RSA
 #from P2P.messages import Message
 #from db import DB
 
