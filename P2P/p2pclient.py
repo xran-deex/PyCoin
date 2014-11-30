@@ -179,7 +179,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
       else:
         log.info('Transaction has been verified')
       from db import DB
-      d = DB.getDB()
+      d = DB()
       d.insertTransaction(t)
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()

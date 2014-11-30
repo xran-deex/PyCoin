@@ -5,7 +5,7 @@ from MiningManager.miningmanager import Miner
 from P2P.client_manager import P2PClientManager
 from TransactionManager.transaction import Transaction
 from TransactionManager.coinbase import CoinBase
-import threading, random
+import threading, random, time
 from keystore import KeyStore
 from Crypto.PublicKey import RSA
 from P2P.messages import Message
@@ -20,7 +20,7 @@ class PyCoin(Frame):
         self.parent = parent
         self.parent.protocol("WM_DELETE_WINDOW", self.quit)
         self.coin_balance = StringVar(self.parent, '0')
-        self.db = DB.getDB()
+        self.db = DB()
         self.initApp()
         self.setupGUI()
         
@@ -33,8 +33,8 @@ class PyCoin(Frame):
     def initApp(self):
         #Connect Here
         client = P2PClientManager.getClient(port=random.randint(40000, 60000))
-        #client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
-        self.db.subscribe(self.update_balance)
+        client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
+        #self.db.subscribe(self.update_balance)
         t = threading.Thread(target=self.start_miner)
         t.start()
         c = CoinBase(owner=KeyStore.getPrivateKey())
@@ -48,7 +48,7 @@ class PyCoin(Frame):
       self.miner = Miner()
 
     def update_balance(self):
-
+        time.sleep(2)
         self.coin_balance.set(str(KeyStore.get_balance()))
     
     def setupGUI(self):

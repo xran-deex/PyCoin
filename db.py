@@ -11,19 +11,11 @@ log.setLevel(LOG_LEVEL)
 class DB:
   
   db_file = 'db.db'
-  db = None
   
-  def getDB():
-    if not DB.db:
-      DB.db = DB(DB.__name__)
-    return DB.db
-  
-  def __init__(self, caller):
+  def __init__(self):
     """ Initializes the database access object
         If the database doesn't exist, it is created, otherwise we just connect.
     """
-    if caller != 'DB':
-      raise Exception('DB is a singleton. Get instance by calling DB.getDB()')
     db_is_new = not os.path.exists(DB.db_file)
     self.conn = sqlite3.connect(DB.db_file)
     
@@ -54,7 +46,6 @@ class DB:
       );
       '''
       self.conn.executescript(sql)
-    self.subscribers = []
       
   def getTransactionByHash(self, hash):
     """ Retrieves a transaction by hash
@@ -92,7 +83,6 @@ class DB:
     self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), out.transaction, out.n, 0, out.pack(bytearray())])
       
     self.conn.commit()
-    self.notify_subscribers()
     
   def insertTransaction(self, trans):
     """ Inserts a transaction into the database
@@ -113,7 +103,6 @@ class DB:
     log.info('removing...%d, %s', out.value, out.hash_output())
     self.conn.execute('delete from INPUT_OUTPUTS WHERE ID = ?', [out.hash_output()])
     self.conn.commit()
-    self.notify_subscribers()
     
   def getUnspentOutputs(self, pubKey=None):
     """ Retrieves a list of all unspent outputs
@@ -155,13 +144,6 @@ class DB:
   def insertBlock(self, block):
     self.conn.execute('insert into BLOCKS (ID, BLOCK) values (?, ?)', [block.hash_block(hex=True), block.pack()])
     self.conn.commit()
-    
-  def subscribe(self, callback):
-    self.subscribers.append(callback)
-    
-  def notify_subscribers(self):
-    for callback in self.subscribers:
-      callback()
     
 if __name__ == '__main__':
   from keystore import KeyStore

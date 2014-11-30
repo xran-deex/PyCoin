@@ -23,7 +23,6 @@ class Transaction:
     self.output = []
     self.hash = None
     if not owner:
-      raise Exception()
       self.owner = KeyStore.getPrivateKey()
     else:
       self.owner = owner
@@ -35,7 +34,7 @@ class Transaction:
     
     # find all previous unspent outputs....
     from db import DB
-    db = DB.getDB()
+    db = DB()
     outputs = db.getUnspentOutputs(self.owner.publickey())
     #print(outputs)
     
@@ -125,7 +124,7 @@ class Transaction:
     
   def store_transaction(self):
     from db import DB
-    db = DB.getDB()
+    db = DB()
     db.insertTransaction(self)
     
   def pack(self, withSig=False):
@@ -182,7 +181,7 @@ class Transaction:
   def verify(self):
     # find all previous unspent outputs....
     from db import DB
-    db = DB.getDB()
+    db = DB()
     log.info('Verifying transaction...')
     if self.input[0].prev == bytes(struct.pack('I', 0) * 8):
       log.info('Coinbase transaction verified.')
@@ -239,7 +238,6 @@ class Transaction:
       self.n = n
       self.signature = None
       if not owner:
-        raise Exception()
         self.owner = KeyStore.getPrivateKey()
       else:
         self.owner = owner
