@@ -123,8 +123,9 @@ class P2PClient(object):
         callback(trans)
   
   def broadcast_transaction(self, t):
-    self.notify_subscribers(Message.NEW_TRANSACTION, t)
+    
     self.send_message(Message.NEW_TRANSACTION, t.pack(withSig=True))
+    self.notify_subscribers(Message.NEW_TRANSACTION, t)
     
   def broadcast_block(self, b):
     self.notify_subscribers(Message.NEW_BLOCK, b) # fix later

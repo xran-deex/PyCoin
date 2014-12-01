@@ -19,7 +19,6 @@ class CoinBase(Transaction):
     Transaction.__init__(self, owner)
     log.info('Creating a CoinBase transaction')
     if not owner:
-      raise Exception()
       self.owner = keystore.KeyStore.getPrivateKey()
     else:
       self.owner = owner
@@ -55,9 +54,6 @@ class CoinBase(Transaction):
     output.n = len(self.output)
     output.transaction = self.hash_transaction()
 
-    #from db import DB
-    #db = DB()
-    #db.insertUnspentOutput(output, self)
     return self
   
   def hash_zero(self):

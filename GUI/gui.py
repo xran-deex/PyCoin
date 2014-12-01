@@ -34,7 +34,6 @@ class PyCoin(Frame):
         #Connect Here
         client = P2PClientManager.getClient(port=random.randint(40000, 60000))
         client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
-        #self.db.subscribe(self.update_balance)
         t = threading.Thread(target=self.start_miner)
         t.start()
         c = CoinBase(owner=KeyStore.getPrivateKey())
@@ -47,8 +46,7 @@ class PyCoin(Frame):
     def start_miner(self):
       self.miner = Miner()
 
-    def update_balance(self):
-        time.sleep(2)
+    def update_balance(self, t=None):
         self.coin_balance.set(str(KeyStore.get_balance()))
     
     def setupGUI(self):
@@ -129,7 +127,7 @@ class PyCoin(Frame):
 
             if result:
               print('Sending {} BitCoins to reciever:\n {}'.format(sendAmt, recvKey))
-              t = Transaction(owner=KeyStore.getPrivateKey())
+              t = Transaction(owner=KeyStore.getPrivateKey(), callback=self.update_balance)
               t.add_output(Transaction.Output(int(sendAmt), recvPubKey))
               t.finish_transaction()
 

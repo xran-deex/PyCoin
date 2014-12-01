@@ -17,7 +17,12 @@ class Transaction:
   ''' Base "regular" transaction '''
   nVersion = 1
   
-  def __init__(self, owner=None):
+  def __init__(self, owner=None, callback=None):
+    """ Initializes a Transaction object
+    
+    Param: owner -> The 'owner' of this transaction. (Initiator)
+           callback -> a callback function to get called when the transaction is verified
+    """
     log.info('Creating a regular transaction')
     self.input = []
     self.output = []
@@ -26,6 +31,7 @@ class Transaction:
       self.owner = KeyStore.getPrivateKey()
     else:
       self.owner = owner
+    self.callback = callback
     
   def add_input(self, inp):
     """ since inputs are really just outputs, this will be slowly converted to just accepting an input value
@@ -36,7 +42,6 @@ class Transaction:
     from db import DB
     db = DB()
     outputs = db.getUnspentOutputs(self.owner.publickey())
-    #print(outputs)
     
     # find enough outputs to total the requested input...
     val = 0
@@ -195,6 +200,8 @@ class Transaction:
             return False
           log.info('removing output...')
           db.removeUnspentOutput(o) # output was verified, remove it
+    if self.callback:
+      self.callback()
     return True
     
   def check_sig(self, signature, pubKey, trans):
