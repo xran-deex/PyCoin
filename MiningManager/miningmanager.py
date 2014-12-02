@@ -22,7 +22,7 @@ class Miner:
     self.hashnum = SHA256.new()
     self.transactions = []
     self.start_over = False
-    self.b = Block(bytearray(32))
+    self.b = Block()
     self.client = P2PClientManager.getClient()
     self.client.subscribe(Message.NEW_BLOCK, self.handle_new_block)
     self.client.subscribe(Message.NEW_TRANSACTION, self.handle_new_transaction)

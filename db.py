@@ -1,7 +1,7 @@
 import sqlite3, os
 from TransactionManager.transaction import Transaction
 from TransactionManager.coinbase import CoinBase
-#from BlockManager.block import Block
+
 import logging
 from globals import LOG_LEVEL
 
@@ -127,6 +127,7 @@ class DB:
     self.conn.commit()
     
   def getAllBlocks(self):
+    from BlockManager.block import Block
     blocks = self.conn.execute('SELECT * FROM BLOCKS')
     raw_list = blocks.fetchall()
     result = []
@@ -136,13 +137,26 @@ class DB:
       result.append(b)
     return result
     
-  def getLatestBlock(self):
-    block = self.conn.execute('SELECT * FROM BLOCKS ORDER BY TIMESTAMP LIMIT 1')
+  def getLatestBlockHash(self):
+    block = self.conn.execute('SELECT ID FROM BLOCKS ORDER BY TIMESTAMP LIMIT 1')
     raw_list = block.fetchall()
-    return raw_list[0]
+    if not raw_list:
+      return None
+    return raw_list[0][0]
+    
+  def getBlock(self, block_hash):
+    from BlockManager.block import Block
+    print(block_hash)
+    block = self.conn.execute('SELECT BLOCK FROM BLOCKS WHERE ID = ?', [block_hash])
+    raw_block = block.fetchall()
+    if not raw_block:
+      return None
+    b = Block()
+    b.unpack(raw_block[0][0])
+    return b
     
   def insertBlock(self, block):
-    self.conn.execute('insert into BLOCKS (ID, BLOCK) values (?, ?)', [block.hash_block(hex=True), block.pack()])
+    self.conn.execute('insert into BLOCKS (ID, BLOCK) values (?, ?)', [block.hash_block(), block.pack()])
     self.conn.commit()
     
 if __name__ == '__main__':

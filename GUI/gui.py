@@ -10,6 +10,7 @@ from keystore import KeyStore
 from Crypto.PublicKey import RSA
 from P2P.messages import Message
 from db import DB
+from Crypto.Hash import SHA
 
 class PyCoin(Frame):
 
@@ -32,15 +33,15 @@ class PyCoin(Frame):
 
     def initApp(self):
         #Connect Here
-        client = P2PClientManager.getClient(port=random.randint(40000, 60000))
-        client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
+        self.client = P2PClientManager.getClient(port=random.randint(40000, 60000))
+        self.client.subscribe(Message.NEW_TRANSACTION, self.update_balance)
         t = threading.Thread(target=self.start_miner)
         t.start()
         c = CoinBase(owner=KeyStore.getPrivateKey())
         c.finish_transaction()
         #Get balance, Save to variable below
         self.coin_balance.set(str(KeyStore.get_balance()))
-        print(KeyStore.getPublicKey().exportKey())
+        print(SHA.new(KeyStore.getPublicKey().exportKey()).hexdigest())
         print("App initiated")
         
     def start_miner(self):
@@ -104,19 +105,19 @@ class PyCoin(Frame):
     def sendCoins(self):
         sendAmt = self.amountBox.get()      	    #Amount to send
         recvKey = self.recieverKey.get("1.0",'end-1c')   #recievers public key
-        temp = ''
-        skip = False
-        for i in range(len(recvKey)):
-            if recvKey[i] == '\\' and recvKey[i+1] == 'n':
-                temp += '\n'
-                skip = True
-            elif skip:
-                skip = False
-                continue
-            else:
-                temp += recvKey[i]
+        # temp = ''
+        # skip = False
+        # for i in range(len(recvKey)):
+        #     if recvKey[i] == '\\' and recvKey[i+1] == 'n':
+        #         temp += '\n'
+        #         skip = True
+        #     elif skip:
+        #         skip = False
+        #         continue
+        #     else:
+        #         temp += recvKey[i]
 
-        recvPubKey = RSA.importKey(bytes(temp, 'ascii'))
+        # recvPubKey = RSA.importKey(bytes(temp, 'ascii'))
 
         if not sendAmt:
             messagebox.showwarning("Warning", "Please enter a BitCoin amount.")
@@ -128,7 +129,8 @@ class PyCoin(Frame):
             if result:
               print('Sending {} BitCoins to reciever:\n {}'.format(sendAmt, recvKey))
               t = Transaction(owner=KeyStore.getPrivateKey(), callback=self.update_balance)
-              t.add_output(Transaction.Output(int(sendAmt), recvPubKey))
+              pubKey = self.client.keyTable[recvKey]
+              t.add_output(Transaction.Output(int(sendAmt), RSA.importKey(pubKey)))
               t.finish_transaction()
 
             self.amountBox.delete(0,END)

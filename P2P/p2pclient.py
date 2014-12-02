@@ -1,6 +1,8 @@
 import socket, pickle, threading, socketserver
 from P2P.messages import Message
 from P2P.p2pserver import P2PServer
+from Crypto.Hash import SHA
+from keystore import KeyStore
 
 import logging
 from globals import LOG_LEVEL
@@ -27,12 +29,19 @@ class P2PClient(object):
     log.info('Connecting to host...')
     self.p2pserver.connect((host, P2PClient.PORT))
     self.myIP = self.p2pserver.getsockname()[0] # the ip of this machine
+    self.myPublicKey = KeyStore.getPublicKey().exportKey()
     self.trans_queue = []
     self.received_trans = []
     self.received_blocks = []
     self.peer_list = []
     self.trans_listeners = []
     self.block_listeners = []
+    self.keyTable = {}
+
+  def build_key_table(self):
+    self.keyTable = {}
+    for addr, port, key in self.peer_list:
+      self.keyTable[SHA.new(key).hexdigest()] = key
     
   def send_message(self, message, payload=None):
     log.info('Sending message...')
@@ -42,8 +51,9 @@ class P2PClient(object):
       self.p2pserver.sendall(message)
       
       time.sleep(0.1)
-      self.p2pserver.sendall(pack('I', self.CLIENT_PORT))
+      self.p2pserver.sendall(pack('I', self.CLIENT_PORT) + self.myPublicKey)
       self.peer_list = pickle.loads(self.p2pserver.recv(1024).strip())
+      self.build_key_table()
       
     elif message == Message.NEW_TRANSACTION:
       # if the message is 'NEW_TRANSACTION', send the message and payload (packed transaction) to each peer
@@ -59,7 +69,7 @@ class P2PClient(object):
         
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         log.info('Connecting to peer %s', peer)
-        s.connect(peer)
+        s.connect((peer[0], peer[1]))
         log.info('sent message: %s', message)
         s.sendall(message)
         time.sleep(0.1)
@@ -76,7 +86,7 @@ class P2PClient(object):
         
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         log.info('Connecting to peer %s', peer)
-        s.connect(peer)
+        s.connect((peer[0], peer[1]))
         log.info('sent message: %s', message)
         s.sendall(message)
         time.sleep(0.1)
@@ -133,6 +143,8 @@ class P2PClient(object):
     
   def update_peer_list(self, peer_list):
     self.peer_list = peer_list
+    self.build_key_table()
+    print(self.keyTable)
     if len(self.trans_queue) > 0:
       log.info('sending queued transactions')
       for t in self.trans_queue:
@@ -189,7 +201,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
     elif message == Message.NEW_BLOCK:
       from BlockManager.block import Block
       block = self.request.recv(2048)
-      b = Block(bytearray())
+      b = Block()
       b.unpack(block)
       if not b.verify():
         raise Exception('Block invalid!')
@@ -202,7 +214,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
     elif message == Message.ADD:
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
-      port = self.request.recv(128).strip()
+      port = self.request.recv(1024).strip()
       peer_list = pickle.loads(port)
       log.info('peer list: %s', peer_list)
       client.update_peer_list(peer_list)

@@ -51,8 +51,8 @@ class P2PServer:
     s.close()
     print('server dead')
   
-  def add_peer(self, peer, port):
-    self.peer_list.append((peer, port))
+  def add_peer(self, peer, port, pubKey):
+    self.peer_list.append((peer, port, pubKey))
     
   def remove_peer(self, peer, conn):
     toBeRemoved = None
@@ -82,9 +82,10 @@ class P2PServer:
         
         if message == Message.ADD:
           print(peer)
-          port = conn.recv(1024).strip()
-          port = unpack('I', port)[0]
-          self.add_peer(peer[0], port)
+          package = conn.recv(1024).strip()
+          port = unpack('I', package[0:4])[0]
+          pubKey = package[4:454]
+          self.add_peer(peer[0], port, pubKey)
           self.deliver_peer_list(conn)
           self.send_to_peers(pickle.dumps(list(self.peer_list)), port, Message.ADD)
           
@@ -107,7 +108,7 @@ class P2PServer:
   def send_to_peers(self, payload, origin, message):
     ''' broadcast a message to all peers '''
     print(self.peer_list)
-    for peer, port in self.peer_list:
+    for peer, port, pubKey in self.peer_list:
       if port == origin:
         continue
       print(peer)
