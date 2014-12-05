@@ -33,7 +33,7 @@ class Miner:
       raise Exception('Not a Transaction object!')
     self.transactions.append(trans)
     log.debug('Received new transaction')
-    if len(self.transactions) > 1:
+    if len(self.transactions) > 5:
       self.mining_thread = threading.Thread(target=self.solve_on_thread)
       self.mining_thread.start()
         

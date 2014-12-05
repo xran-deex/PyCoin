@@ -64,7 +64,8 @@ class PyCoin(Frame):
     self.status.text = info
 
   def update_balance(self, t=None):
-    self.coin_balance.set(str(KeyStore.get_balance()))
+    bal = str(KeyStore.get_balance())
+    self.coin_balance.set(bal)
 
   def create_menu(self):
     top = self.winfo_toplevel()
@@ -169,7 +170,11 @@ class PyCoin(Frame):
         except:
           messagebox.showwarning('Address not found.', 'Oops. That PyCoin address could not be found.')
           return
-        t.add_output(Transaction.Output(int(sendAmt), RSA.importKey(pubKey)))
+        try:
+          t.add_output(Transaction.Output(int(sendAmt), RSA.importKey(pubKey)))
+        except:
+          messagebox.showwarning('Insufficient funds.', 'Oops. It looks like you ran out of money. :(')
+          return
         t.finish_transaction()
 
       self.amountBox.delete(0,END)
