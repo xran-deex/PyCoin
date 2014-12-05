@@ -45,7 +45,7 @@ class Miner:
       self.broadcast_info('Block solution found!')
       c = CoinBase()
       self.b.add_transaction(c)
-      self.client.broadcast_block(self.b.pack())
+      self.client.broadcast_block(self.b)
       
   def handle_new_block(self, block):
     self.start_over = True

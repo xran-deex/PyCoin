@@ -143,8 +143,9 @@ class P2PClient(object):
     self.notify_subscribers(Message.NEW_TRANSACTION, t)
     
   def broadcast_block(self, b):
+    
     self.notify_subscribers(Message.NEW_BLOCK, b) # fix later
-    self.send_message(Message.NEW_BLOCK, b)
+    self.send_message(Message.NEW_BLOCK, b.pack())
     
   def update_peer_list(self, peer_list):
     self.peer_list = peer_list
