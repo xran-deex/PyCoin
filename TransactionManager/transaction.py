@@ -160,14 +160,11 @@ class Transaction:
     num_in = struct.unpack_from('B', buf, offset)[0]
     offset += 1
     self.input = []
-    coinbase = False
-    if self.hash == bytes(struct.pack('I', 0) * 8):
-      coinbase = True
     for i in range(num_in):
-      inp = Transaction.Input.unpack(buf, offset, coinbase=coinbase)
+      inp = Transaction.Input.unpack(buf, offset)
       self.input.append(inp)
       offset += Transaction.Input.PACKED_SIZE
-      if coinbase:
+      if hasattr(inp, 'coinbase'):
         offset += 4
       
     num_out = struct.unpack_from('B', buf, offset)[0]
@@ -227,10 +224,13 @@ class Transaction:
     PACKED_SIZE = 290
     
     @staticmethod
-    def unpack(buf, offset, coinbase=False):
+    def unpack(buf, offset):
+      coinbase = False
       value = struct.unpack_from('B', buf, offset)[0]
       offset += 1
       prev = buf[offset:offset+32]
+      if prev == bytes(struct.pack('I', 0) * 8):
+        coinbase = True
       offset += 32
       n = struct.unpack_from('B', buf, offset)[0]
       offset += 1

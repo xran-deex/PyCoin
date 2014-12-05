@@ -53,9 +53,7 @@ class Miner:
     
   def remove_queue_transactions(self, block):
     toBeRemoved = []
-    b = Block()
-    b.unpack(block)
-    for t in b.transactionList:
+    for t in block.transactionList:
       for trans in self.transactions:
         if t.hash == trans.hash:
           toBeRemoved.append(trans)
