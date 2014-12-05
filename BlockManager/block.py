@@ -13,7 +13,6 @@ class Block:
     from db import DB
     self.db = DB()
     prev = self.db.getLatestBlockHash()
-    print(prev)
     if not prev:
       self.HashPrevBlock = bytes(32)
     else:
@@ -23,7 +22,7 @@ class Block:
     #self.target = random.getrandbits(64)
     self.nonce = random.getrandbits(32)
     self.transactionList = []
-    self.target = 2
+    self.target = 16
     self.hash = None
     
   def add_transaction(self, trans):
@@ -82,7 +81,7 @@ class Block:
   def finish_block(self):
     v = self.verify()
     if v:
-      print('Block verified')
+      log.debug('Block verified')
       self.store_block()
     
   def verify(self):
@@ -92,7 +91,7 @@ class Block:
         return False
     prevBlock = self.db.getBlock(self.HashPrevBlock)
     if prevBlock:
-      print('Verifying previous block')
+      log.debug('Verifying previous block')
       return prevBlock.verify()
     return True
     

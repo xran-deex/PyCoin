@@ -7,7 +7,7 @@ import struct
 import logging
 from globals import LOG_LEVEL
 
-log = logging.getLogger(__name__)
+log = logging.getLogger()
 log.setLevel(LOG_LEVEL)
 
 class CoinBase(Transaction):
@@ -17,7 +17,7 @@ class CoinBase(Transaction):
   
   def __init__(self, owner=None):
     Transaction.__init__(self, owner)
-    log.info('Creating a CoinBase transaction')
+    log.debug('Creating a CoinBase transaction')
     if not owner:
       self.owner = keystore.KeyStore.getPrivateKey()
     else:
@@ -49,7 +49,7 @@ class CoinBase(Transaction):
     Returns:
       Self, for use as a factory type builder.
     """
-    log.info('creating output... %d', output.value)
+    log.debug('creating output... %d', output.value)
     self.output.append(output)
     output.n = len(self.output)
     output.transaction = self.hash_transaction()

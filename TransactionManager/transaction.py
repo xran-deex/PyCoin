@@ -23,7 +23,7 @@ class Transaction:
     Param: owner -> The 'owner' of this transaction. (Initiator)
            callback -> a callback function to get called when the transaction is verified
     """
-    log.info('Creating a regular transaction')
+    log.debug('Creating a regular transaction')
     self.input = []
     self.output = []
     self.hash = None
@@ -58,7 +58,6 @@ class Transaction:
       raise Exception('Output exceeds input!')
     # 'manually' add the change as an output back to ourselves
     o = Transaction.Output(diff, self.owner.publickey())
-    print('creating output to self...')
     self.output.append(o)
     o.n = len(self.output)
 
@@ -161,10 +160,15 @@ class Transaction:
     num_in = struct.unpack_from('B', buf, offset)[0]
     offset += 1
     self.input = []
+    coinbase = False
+    if self.hash == bytes(struct.pack('I', 0) * 8):
+      coinbase = True
     for i in range(num_in):
-      inp = Transaction.Input.unpack(buf, offset)
+      inp = Transaction.Input.unpack(buf, offset, coinbase=coinbase)
       self.input.append(inp)
       offset += Transaction.Input.PACKED_SIZE
+      if coinbase:
+        offset += 4
       
     num_out = struct.unpack_from('B', buf, offset)[0]
     offset += 1
@@ -198,7 +202,7 @@ class Transaction:
           if not self.check_sig(i.signature, o.pubKey, o.transaction):
             log.warning('Transaction invalid!')
             return False
-          log.info('removing output...')
+          log.debug('removing output...')
           db.removeUnspentOutput(o) # output was verified, remove it
     if self.callback:
       self.callback()
@@ -223,7 +227,7 @@ class Transaction:
     PACKED_SIZE = 290
     
     @staticmethod
-    def unpack(buf, offset):
+    def unpack(buf, offset, coinbase=False):
       value = struct.unpack_from('B', buf, offset)[0]
       offset += 1
       prev = buf[offset:offset+32]
@@ -234,6 +238,8 @@ class Transaction:
       i = Transaction.Input(value, prev, n)
       i.signature = signature
       i.n = n
+      if coinbase:
+        i.coinbase = struct.unpack_from('I', buf, offset)[0]
       return i
     
     def __init__(self, value, prev, n, owner=None, output=None):
@@ -273,6 +279,8 @@ class Transaction:
       buf.extend(struct.pack('B', self.n))
       if withSig:
         buf.extend(self.signature)
+      if hasattr(self, 'coinbase'):
+        buf.extend(struct.pack('I', self.coinbase)) #4
       return buf
       
   class Output:

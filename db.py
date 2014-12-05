@@ -44,8 +44,22 @@ class DB:
       BLOCK BLOB,
       TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+      create table if not exists FIRST(
+      TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP,
+      RAN_BEFORE INTEGER,
+      ID INTEGER
+      );
       '''
       self.conn.executescript(sql)
+      
+  def hasRanBefore(self):
+    result = self.conn.execute('select RAN_BEFORE from FIRST WHERE ID = ?', [1])
+    result = result.fetchall()
+    return len(result) == 1
+    
+  def setRanBefore(self):
+    self.conn.execute('insert into FIRST (RAN_BEFORE, ID) values (?, ?)', [1, 1])
+    self.conn.commit()
       
   def getTransactionByHash(self, hash):
     """ Retrieves a transaction by hash
@@ -100,7 +114,7 @@ class DB:
   def removeUnspentOutput(self, out):
     if not out:
       return
-    log.info('removing...%d, %s', out.value, out.hash_output())
+    #log.info('removing...%d, %s', out.value, out.hash_output())
     self.conn.execute('delete from INPUT_OUTPUTS WHERE ID = ?', [out.hash_output()])
     self.conn.commit()
     
@@ -138,7 +152,7 @@ class DB:
     return result
     
   def getLatestBlockHash(self):
-    block = self.conn.execute('SELECT ID FROM BLOCKS ORDER BY TIMESTAMP LIMIT 1')
+    block = self.conn.execute('SELECT ID FROM BLOCKS ORDER BY TIMESTAMP DESC LIMIT 1')
     raw_list = block.fetchall()
     if not raw_list:
       return None
@@ -146,7 +160,6 @@ class DB:
     
   def getBlock(self, block_hash):
     from BlockManager.block import Block
-    print(block_hash)
     block = self.conn.execute('SELECT BLOCK FROM BLOCKS WHERE ID = ?', [block_hash])
     raw_block = block.fetchall()
     if not raw_block:
@@ -156,6 +169,7 @@ class DB:
     return b
     
   def insertBlock(self, block):
+    print('inserting block')
     self.conn.execute('insert into BLOCKS (ID, BLOCK) values (?, ?)', [block.hash_block(), block.pack()])
     self.conn.commit()
     

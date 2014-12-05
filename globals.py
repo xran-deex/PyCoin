@@ -6,4 +6,4 @@ LOG_LEVEL = logging.INFO
 # INFO
 # DEBUG
 # WARN
-# ??
+# CRITICAL
