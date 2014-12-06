@@ -60,6 +60,8 @@ class Block:
       t = Transaction()
       h = buf[offset:offset+32]
       t.hash = SHA256.new(h)
+      trans = self.db.getTransactionByHash(t.hash.digest())
+      self.transactionList.append(trans)
       offset += 32
     log.info('Block unpacked')
     

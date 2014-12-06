@@ -70,9 +70,10 @@ class DB:
     Return: (Transaction) the transaction object or None if not found
     """
     trans = self.conn.execute('SELECT * FROM TRANSACTIONS WHERE ID = ?', [hash])
-    if not trans:
-      return trans
-    return Transaction().unpack(trans[1])
+    trans = trans.fetchall()
+    if len(trans) == 0:
+      return None
+    return Transaction().unpack(trans[0][1])
     
   def getAllTransactions(self):
     """ Retrieves every transaction stored in the database

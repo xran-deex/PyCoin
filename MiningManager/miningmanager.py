@@ -59,6 +59,7 @@ class Miner:
           toBeRemoved.append(trans)
     for t in toBeRemoved:
       self.transactions.remove(t)
+    print('Transactions should be empty', self.transactions)
 
   def solve_proof_of_work(self):
     log.info('Mining started...')
