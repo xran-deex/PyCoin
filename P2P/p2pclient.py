@@ -57,7 +57,7 @@ class P2PClient(object):
       self.p2pserver.sendall(message)
       time.sleep(0.1)
       self.p2pserver.sendall(pack('I', self.CLIENT_PORT) + self.myPublicKey)
-      self.peer_list = pickle.loads(self.p2pserver.recv(1024).strip())
+      self.peer_list = pickle.loads(self.p2pserver.recv(4096).strip())
       self.build_key_table()
       
     elif message == Message.NEW_TRANSACTION:
