@@ -21,7 +21,7 @@ class DB:
     
     # if there is no database file, create the db schema
     if db_is_new:
-      log.info('Creating schema')
+      log.debug('Creating schema')
       sql = '''create table if not exists TRANSACTIONS(
       ID TEXT,
       TRANS BLOB,
@@ -72,9 +72,8 @@ class DB:
     """
     trans = self.conn.execute('SELECT TRANS FROM TRANSACTIONS WHERE ID = ?', [hash])
     trans = trans.fetchone()
-    #print(trans)
-    #if len(trans) == 0:
-      #return None
+    if not trans:
+      return None
     t = Transaction()
     t.unpack(trans[0], withSig=True)
     return t
@@ -120,14 +119,14 @@ class DB:
     try:
       self.conn.execute('insert into TRANSACTIONS (ID, TRANS) values (?, ?)', [trans.hash_transaction(), t])
       self.conn.commit()
-      print('inserted trans: ', trans.hash_transaction())
+      log.debug('inserted trans: %s', trans.hash_transaction())
     except:
       log.warn('Transaction already in database')
     
   def removeUnspentOutput(self, out):
     if not out:
       return
-    #log.info('removing...%d, %s', out.value, out.hash_output())
+    log.debug('removing...%d, %s', out.value, out.hash_output())
     self.conn.execute('delete from INPUT_OUTPUTS WHERE ID = ?', [out.hash_output()])
     self.conn.commit()
     
@@ -182,7 +181,6 @@ class DB:
     return b
     
   def insertBlock(self, block):
-    print('inserting block')
     self.conn.execute('insert into BLOCKS (ID, BLOCK) values (?, ?)', [block.hash_block(), block.pack()])
     self.conn.commit()
     

@@ -23,7 +23,7 @@ class Miner:
     self.transactions = []
     self.start_over = False
     self.isMining = False
-    self.b = Block()
+    
     self.client = P2PClientManager.getClient()
     self.client.subscribe(Message.NEW_BLOCK, self.handle_new_block)
     self.client.subscribe(Message.NEW_TRANSACTION, self.handle_new_transaction)
@@ -41,33 +41,31 @@ class Miner:
   def solve_on_thread(self):
     self.coinbase = CoinBase()
     self.transactions.append(self.coinbase)
+    self.b = Block()
     result = self.solve_proof_of_work()
     if self.start_over:
         self.start_over = False
-        print('mining stopped')
+        log.debug('Mining stopped')
         self.isMining = False
         return
     if result:
       self.transactions = []
       log.info('Block solution found!, %d', self.b.nonce)
-      print('block hash: ', self.b.hash_block(hex=True, withoutReward=False))
+      log.info('Block hash: %s', self.b.hash_block(hex=True, withoutReward=False))
       self.broadcast_info('Block solution found!')
       if self.start_over:
         self.start_over = False
         self.isMining = False
-        print('mining stopped')
+        log.debug('Mining stopped')
         return
       
       self.coinbase.finish_transaction()
       self.b.finish_block()
       self.isMining = False
-      self.b = Block()
       
   def handle_new_block(self, block):
-    print('received new block')
+    log.debug('Received new block')
     self.start_over = True
-    #if self.isMining:
-    self.b = Block()
     self.remove_queue_transactions(block)
     self.isMining = False
     
@@ -78,7 +76,7 @@ class Miner:
         if t.hash_transaction() == trans.hash_transaction():
           toBeRemoved.append(trans)
     for t in toBeRemoved:
-      print('remove form queue: ', t.hash_transaction())
+      log.debug('Remove from queue: ', t.hash_transaction())
       self.transactions.remove(t)
 
   def solve_proof_of_work(self):

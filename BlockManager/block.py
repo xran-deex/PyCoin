@@ -23,7 +23,7 @@ class Block:
     #self.target = random.getrandbits(64)
     self.nonce = random.getrandbits(32)
     self.transactionList = []
-    self.target = 16
+    self.target = 20
     self.hash = None
     self.client = P2PClientManager.getClient()
     
@@ -33,7 +33,7 @@ class Block:
     for t in self.transactionList:
       if t.hash_transaction() == trans.hash_transaction():
         return
-    print('adding trans to block: ', trans.hash_transaction())
+    log.debug('Adding trans to block: %s', trans.hash_transaction())
     self.transactionList.append(trans)
     
   def computeMerkleRoot(self):
@@ -54,7 +54,6 @@ class Block:
       num = len(self.transactionList)
     b.extend(struct.pack('B', num)) #1
     for i in range(num):
-      #if self.transactionList[i]:
       b.extend(self.transactionList[i].hash_transaction()) # 32
     return b
   
@@ -71,12 +70,12 @@ class Block:
     offset += 1
     for i in range(num_trans):
       h = buf[offset:offset+32]
-      print('unpacking: ', h)
+      log.debug('Unpacking: ', h)
       trans = self.db.getTransactionByHash(h)
       self.transactionList.append(trans)
       offset += 32
-    print('block hash: ', self.hash_block(hex=True, withoutReward=False))
-    print('block nonce: ', self.nonce)
+    log.debug('Block hash: %s', self.hash_block(hex=True, withoutReward=False))
+    log.debug('Block nonce: &d', self.nonce)
     log.info('Block unpacked')
     
   def store_block(self):
@@ -99,7 +98,7 @@ class Block:
       self.store_block()
     
   def verify(self):
-    print('finishing block')
+    log.debug('Finishing block')
     verified = False
     for t in self.transactionList:
       if not t.verify():
@@ -117,13 +116,11 @@ class Block:
   def test_hash(self, hash, target):
     """ check if the last 'target' bits are zeros """
     int_hash = int(struct.unpack_from('I', hash[-4:])[0])
-    print(bin(int_hash))
     low = (int_hash & -int_hash)
     lowBit = -1
     while (low):
       low >>= 1
       lowBit += 1
-    print(lowBit)
     if lowBit == target:
       log.info(bin(int_hash))
     return lowBit == target

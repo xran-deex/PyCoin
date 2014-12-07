@@ -13,9 +13,9 @@ log.setLevel(LOG_LEVEL)
 class CoinBase(Transaction):
   ''' Derived coinbase transaction '''
   
-  COINBASE_REWARD = 100
+  COINBASE_REWARD = 10
   
-  def __init__(self, owner=None):
+  def __init__(self, owner=None, amt=None):
     Transaction.__init__(self, owner)
     log.debug('Creating a CoinBase transaction')
     if not owner:
@@ -25,13 +25,15 @@ class CoinBase(Transaction):
     # n is 2^8 -1  for coinbase
     n = 2**8 - 1
     # prev trans is 0 for coinbase
-    i = Transaction.Input(CoinBase.COINBASE_REWARD, self.get_zero_bytes(), n, owner=self.owner)
+    if not amt:
+      amt = CoinBase.COINBASE_REWARD
+    i = Transaction.Input(amt, self.get_zero_bytes(), n, owner=self.owner)
     
     # 32 random bits for the coinbase field
     random.seed()
     i.coinbase = random.getrandbits(32)
     self.add_input(i)
-    out = Transaction.Output(CoinBase.COINBASE_REWARD, self.owner.publickey())
+    out = Transaction.Output(amt, self.owner.publickey())
     self.add_output(out)
     
   def get_zero_bytes(self):

@@ -44,7 +44,7 @@ class PyCoin(Frame):
     t = threading.Thread(target=self.start_miner)
     t.start()
     if not self.db.hasRanBefore():
-      c = CoinBase(owner=KeyStore.getPrivateKey())
+      c = CoinBase(owner=KeyStore.getPrivateKey(), amt=100)
       c.finish_transaction()
       self.db.setRanBefore()
       #messagebox.showinfo('Welcome', 'This is your first time running the app. You get to start off with 100 PyCoins!')

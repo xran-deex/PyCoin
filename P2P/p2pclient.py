@@ -138,7 +138,6 @@ class P2PClient(object):
         callback(trans)
   
   def broadcast_transaction(self, t):
-    
     self.send_message(Message.NEW_TRANSACTION, t.pack(withSig=True))
     self.notify_subscribers(Message.NEW_TRANSACTION, t)
     
@@ -185,9 +184,8 @@ class P2PClient(object):
 class TCPHandler(socketserver.BaseRequestHandler):
   """ Handles incoming tcp requests """
   def handle(self):
-    message = self.request.recv(9).strip()
-    log.debug('received message from a peer..., %s', message)
-    log.info(message)
+    message = self.request.recv(9)
+    log.debug('Received message from a peer..., %s', message)
     if message == Message.NEW_TRANSACTION:
       from TransactionManager.transaction import Transaction
       trans = self.request.recv(2048)
@@ -222,7 +220,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
     elif message[:3] == Message.ADD:
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
-      port = self.request.recv(1024).strip()
+      port = self.request.recv(1024)
       peer_list = pickle.loads(port)
       log.debug('peer list: %s', peer_list)
       client.update_peer_list(peer_list)

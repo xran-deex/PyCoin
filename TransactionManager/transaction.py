@@ -7,7 +7,7 @@ import struct, time
 import logging
 from globals import LOG_LEVEL
 
-log = logging.getLogger(__name__)
+log = logging.getLogger()
 log.setLevel(LOG_LEVEL)
 
 from keystore import *
@@ -42,6 +42,10 @@ class Transaction:
     from db import DB
     db = DB()
     outputs = db.getUnspentOutputs(self.owner.publickey())
+
+    if len(outputs) > 2:
+      self.consolidateOutputs(outputs)
+      outputs = db.getUnspentOutputs(self.owner.publickey())
     
     # find enough outputs to total the requested input...
     val = 0
@@ -62,6 +66,21 @@ class Transaction:
     o.n = len(self.output)
 
     return self
+
+  def consolidateOutputs(self, outputs):
+    log.debug('Consolidating outputs')
+    value = 0
+    t = Transaction()
+    for o in outputs:
+      value += o.value
+      inp = Transaction.Input(o.value, o.transaction, o.n, owner=self.owner, output=o)
+      t.input.append(inp)
+      log.debug('adding %d to input', o.value)
+    output = Transaction.Output(value, self.owner.publickey())
+    log.debug('creating output %d', output.value)
+    output.n = 1
+    t.output.append(output)
+    t.finish_transaction()
     
   def add_output(self, output):
     """ Adds an output to this transaction
@@ -72,7 +91,7 @@ class Transaction:
     Returns:
       Self, for use as a factory type builder.
     """
-    #log.info('creating output... %d, paying to %s', output.value, output.pubKey.exportKey())
+    log.debug('creating output... %d, paying to %s', output.value, output.pubKey.exportKey())
     self.output.append(output)
     output.n = len(self.output)
     
@@ -103,12 +122,6 @@ class Transaction:
     self.hash = SHA256.new()
     self.hash.update(self.pack())
     return self.hash.digest()
-    
-  # def pay_diff_to_self(self):
-  #   totalIn = sum([x.value for x in self.input])
-  #   totalOut = sum([x.value for x in self.output])
-  #   print(totalIn, totalOut, totalIn-totalOut)
-  #   self.add_output(Transaction.Output(totalIn-totalOut, self.owner.publickey()))
     
   def finish_transaction(self, broadcast=True):
 
@@ -206,6 +219,7 @@ class Transaction:
             return False
           log.debug('removing output...')
           db.removeUnspentOutput(o) # output was verified, remove it
+    log.info('Regular transaction verified')
     if self.callback:
       self.callback()
     return True

@@ -1,9 +1,9 @@
 import logging
-logging.basicConfig()
+logging.basicConfig(format='PyCoin (debug): %(message)s')
 LOG_LEVEL = logging.INFO
 
 # Levels
-# INFO
 # DEBUG
+# INFO
 # WARN
 # CRITICAL
