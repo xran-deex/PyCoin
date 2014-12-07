@@ -68,6 +68,7 @@ class Transaction:
     return self
 
   def consolidateOutputs(self, outputs):
+    """ combines all unspent outputs into a single unspent output """
     log.debug('Consolidating outputs')
     value = 0
     t = Transaction()
@@ -100,9 +101,6 @@ class Transaction:
     
     return self
     
-  def get_outputs(self):
-    return self.output
-    
   def broadcast(self):
     """ Broadcast this transaction to peers
     
@@ -115,16 +113,21 @@ class Transaction:
     except Exception as e:
       log.warning(e)
     
-  def hash_transaction(self):
+  def hash_transaction(self, hex=False):
     """ Hashes the transaction in raw format """
     if self.hash:
+      if hex:
+        return self.hash.hexdigest()
       return self.hash.digest()
     self.hash = SHA256.new()
     self.hash.update(self.pack())
+    if hex:
+      return self.hash.hexdigest()
     return self.hash.digest()
     
   def finish_transaction(self, broadcast=True):
-
+    """ finishes a transaction. signs inputs, adds hash to outputs, 
+    stores the transaction, broadcasts this transaction, and verifies the transaction """
     self.sign_inputs()
     self.add_hash_to_outputs()
     self.store_transaction()
@@ -133,20 +136,23 @@ class Transaction:
     self.verify()
     
   def add_hash_to_outputs(self):
+    """ adds the hash of this transaction to all the output objects """
     for o in self.output:
       o.transaction = self.hash_transaction()
     
   def sign_inputs(self):
+    """ signs all the input objects """
     for i in self.input:
       i.apply_signature(i.prev)
     
   def store_transaction(self):
+    """ adds this transaction to the database """
     from db import DB
     db = DB()
     db.insertTransaction(self)
     
   def pack(self, withSig=False, withHash=False):
-    
+    """ serializes this transaction object """
     buffer = bytearray()
     if withHash:
       buffer.extend(self.hash_transaction())
@@ -157,11 +163,13 @@ class Transaction:
     return buffer
     
   def pack_inputs(self, buf, withSig):
+    """ serializes all the input objects """
     for inp in self.input:
       inp.pack(buf, withSig=withSig)
     return buf
     
   def pack_outputs(self, buf):
+    """ serializes all the output objects """
     for o in self.output:
       o.pack(buf)
     return buf
@@ -170,8 +178,6 @@ class Transaction:
     """ unpacks a Transaction from a buffer of bytes
     
     """
-    #self.hash = SHA256.new(buf[:32])
-    #offset = 32
     offset = 0
     num_in = struct.unpack_from('B', buf, offset)[0]
     offset += 1
@@ -202,11 +208,14 @@ class Transaction:
     '\nvout#: ' + str(len(self.output)) +\
     '\nvout[]: ' + str(self.output)
     
-  def verify(self):
+  def verify(self, debug=False):
+    """ verifies all the inputs and outputs of this transaction """
     # find all previous unspent outputs....
     from db import DB
     db = DB()
     log.info('Verifying transaction...')
+    if debug:
+      self.display_debugging()
     if self.input[0].prev == bytes(struct.pack('I', 0) * 8):
       log.info('Coinbase transaction verified.')
       return True
@@ -223,8 +232,22 @@ class Transaction:
     if self.callback:
       self.callback()
     return True
+
+  def display_debugging(self):
+    """ pretty printing """
+    log.info('Transaction Hash: %s', self.hash_transaction(hex=True))
+    log.info('Transaction Inputs:')
+    for i in self.input:
+      log.info('\tSender: %s', SHA256.new(i.signature).hexdigest())
+      log.info('\tAmount: %d', i.value)
+      log.info('\t=====================')
+    for o in self.output:
+      log.info('\tReceiver: %s', SHA256.new(o.pubKey.exportKey()).hexdigest())
+      log.info('\tAmount: %d', o.value)
+      log.info('\t=====================')
     
   def check_sig(self, signature, pubKey, trans):
+    """ checks that the signature was signed by the owner of the public key """
     message = SHA256.new(trans)
     verifier = PKCS1_v1_5.new(pubKey)
     verified = verifier.verify(message, signature)
@@ -244,6 +267,7 @@ class Transaction:
     
     @staticmethod
     def unpack(buf, offset, withSig=False):
+      """ deserializes the input object """
       coinbase = False
       value = struct.unpack_from('B', buf, offset)[0]
       offset += 1
@@ -295,6 +319,7 @@ class Transaction:
       self.signature = signer.sign(message)
       
     def pack(self, buf, withSig=False):
+      """ serializes the input object """
       buf.extend(struct.pack('B', self.value))
       buf.extend(self.prev)
       buf.extend(struct.pack('B', self.n))
@@ -342,6 +367,7 @@ class Transaction:
         return hash.digest()
         
     def hash_output(self, hex=True):
+      """ hashes the output """
       bytes = self.pack(bytearray())
       hash = SHA256.new()
       hash.update(bytes)
@@ -351,19 +377,17 @@ class Transaction:
         return hash.digest()
         
     def pack(self, buf):
+      """ serializes the output object """
       buf.extend(struct.pack('I', self.value)) #4
-      #buf.extend(struct.pack('I', self.timestamp))
       buf.extend(struct.pack('B', self.n)) #1
       buf.extend(self.pubKey.exportKey()) #450
       return buf
       
     @staticmethod
     def unpack(buf, offset=0):
-      #transaction = buf[offset:offset+32]
-      #offset += 32
+      """ deserializes the output object """
       value = struct.unpack_from('I', buf, offset)[0]
       offset += 4
-      #offset += 4 # ignore timestamp
       n = struct.unpack_from('B', buf, offset)[0]
       offset += 1
       key = buf[offset:offset+450]
@@ -389,20 +413,3 @@ if __name__ == '__main__':
   t.add_output(Transaction.Output(20, myKey.publickey()))
   #t.input[0].owner = otherKey
   t.finish_transaction()
-  #print('Verified: ', t.verify())
-  #time.sleep(10)
-  
-  # t = Transaction(owner=myKey)
-
-  # t.add_output(Transaction.Output(12, otherKey.publickey()))
-  # t.finish_transaction()
-  # print('Verified: ', t.verify())
-  # c = CoinBase()
-  # t = Transaction()
-  # t.add_output(Transaction.Output(20, otherKey.publickey()))
-  # for i in t.input:
-  #     i.apply_signature(t.hash_transaction())
-  # b = t.pack(withSig=True)
-  # #print(b)
-  # t.unpack(b)
-  # print(t)

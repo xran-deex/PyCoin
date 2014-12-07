@@ -196,6 +196,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
         raise Exception('Transaction invalid!')
       else:
         log.info('Transaction has been verified')
+
       from db import DB
       d = DB()
       d.insertTransaction(t)
@@ -203,6 +204,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
       client = P2PClientManager.getClient()
       client.queue_item_received(Message.NEW_TRANSACTION, t)
       client.notify_subscribers(Message.NEW_TRANSACTION, t)
+      client.broadcast_info('Transaction received')
     elif message == Message.NEW_BLOCK:
       from BlockManager.block import Block
       block = self.request.recv(2048)
@@ -216,6 +218,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
       client = P2PClientManager.getClient()
       client.notify_subscribers(Message.NEW_BLOCK, b)
       client.queue_item_received(Message.NEW_BLOCK, b)
+      client.broadcast_info('Block received')
       
     elif message[:3] == Message.ADD:
       from P2P.client_manager import P2PClientManager
@@ -224,6 +227,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
       peer_list = pickle.loads(port)
       log.debug('peer list: %s', peer_list)
       client.update_peer_list(peer_list)
+      client.broadcast_info('New peer added')
       
       
 

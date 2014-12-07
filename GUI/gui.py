@@ -27,6 +27,7 @@ class PyCoin(Frame):
     self.parent = parent
     self.parent.protocol("WM_DELETE_WINDOW", self.quit)
     self.coin_balance = StringVar(self.parent, '0')
+    self.status_message = StringVar(self.parent, 'Ready')
     self.db = DB()
     self.initApp()
     self.setupGUI()
@@ -62,7 +63,10 @@ class PyCoin(Frame):
     pass
     
   def update_status(self, info):
-    self.status.text = info
+    self.status_message.set(info)
+    
+  def set_debug_level(self):
+    pass
 
   def update_balance(self, t=None):
     bal = str(KeyStore.get_balance())
@@ -90,7 +94,7 @@ class PyCoin(Frame):
     key.pack()
     
   def verify_block_chain(self):
-    if self.miner.verify_block_chain():
+    if self.miner.verify_block_chain(debug=True):
       messagebox.showinfo("Verified", "Block chain verified.")
     else:
       messagebox.showwarning("Warning", "Block chain is invalid.")
@@ -146,7 +150,7 @@ class PyCoin(Frame):
     self.sendBtn.pack(fill=X, pady=5)
 
     #Status Bar
-    status = Label(self.winfo_toplevel(), text="Ready", bd=1, relief=SUNKEN, anchor=W)
+    status = Label(self.winfo_toplevel(), textvariable=self.status_message, bd=1, relief=SUNKEN, anchor=W)
     status.pack(side=BOTTOM, fill=X)
 
   

@@ -11,6 +11,7 @@ log.setLevel(LOG_LEVEL)
 class Block:
   
   def __init__(self):
+    """ initializes the block """
     from db import DB
     self.db = DB()
     prev = self.db.getLatestBlockHash()
@@ -28,6 +29,11 @@ class Block:
     self.client = P2PClientManager.getClient()
     
   def add_transaction(self, trans):
+    """ adds a new transaction to this block's list 
+
+    params:
+      trans -> the transaction object to add
+    """
     if not isinstance(trans, Transaction):
       raise Exception('Not a Transaction object!')
     for t in self.transactionList:
@@ -40,6 +46,7 @@ class Block:
     self.HashMerkleRoot = Utils.buildMerkleTree(self.transactionList)
     
   def getPreviousBlockHash(self):
+    """ retrieves the previous block hash from the database """
     return self.db.getLatestBlock()[0]
   
   def pack(self, withoutReward=False):
@@ -82,7 +89,7 @@ class Block:
     self.db.insertBlock(self)
     
   def hash_block(self, hex=False, withoutReward=False):
-    # if not self.hash:
+    """ hashes the block """
     b = bytearray()
     b.extend(self.pack(withoutReward=withoutReward))
     self.hash = SHA256.new(b)
@@ -91,17 +98,21 @@ class Block:
     return self.hash.digest()
     
   def finish_block(self):
+    """ verifies the block, then broadcasts it """
     v = self.verify()
     if v:
       self.client.broadcast_block(self, ignore=True)
       log.debug('Block verified')
       self.store_block()
     
-  def verify(self):
+  def verify(self, debug=False):
+    """ verifies the block """
     log.debug('Finishing block')
     verified = False
+    if debug:
+      log.info('Block hash: %s', self.hash_block(hex=True))
     for t in self.transactionList:
-      if not t.verify():
+      if not t.verify(debug=debug):
         log.warn('Invalid transaction in block')
         return False
     if not self.test_hash(self.hash_block(withoutReward=False), self.target):
@@ -110,7 +121,7 @@ class Block:
     prevBlock = self.db.getBlock(self.HashPrevBlock)
     if prevBlock:
       log.debug('Verifying previous block')
-      return prevBlock.verify()
+      return prevBlock.verify(debug=debug)
     return True
     
   def test_hash(self, hash, target):

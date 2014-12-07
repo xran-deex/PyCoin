@@ -19,6 +19,7 @@ class Miner:
   INVALID = -1
   
   def __init__(self):
+    """ initializes the miner object """
     self.hashnum = SHA256.new()
     self.transactions = []
     self.start_over = False
@@ -30,6 +31,12 @@ class Miner:
     self.mining_thread = None
 
   def handle_new_transaction(self, trans):
+    """ a callback function that is called when a new transaction is received
+    from the p2p client
+
+    params:
+      trans -> the new transaction
+    """
     if not isinstance(trans, Transaction):
       raise Exception('Not a Transaction object!')
     self.transactions.append(trans)
@@ -39,6 +46,7 @@ class Miner:
       self.mining_thread.start()
         
   def solve_on_thread(self):
+    """ solves the POW and creates a new coinbase transaction when solved. """
     self.coinbase = CoinBase()
     self.transactions.append(self.coinbase)
     self.b = Block()
@@ -51,6 +59,7 @@ class Miner:
     if result:
       self.transactions = []
       log.info('Block solution found!, %d', self.b.nonce)
+      self.client.broadcast_info('Block solution found')
       log.info('Block hash: %s', self.b.hash_block(hex=True, withoutReward=False))
       self.broadcast_info('Block solution found!')
       if self.start_over:
@@ -64,12 +73,24 @@ class Miner:
       self.isMining = False
       
   def handle_new_block(self, block):
+    """ a callback method that will be called when a new block is received
+    from the p2p client.
+
+    params:
+      block -> the new block
+    """
     log.debug('Received new block')
     self.start_over = True
     self.remove_queue_transactions(block)
     self.isMining = False
     
   def remove_queue_transactions(self, block):
+    """ removes any transactions from the queue that were
+    already included in the incoming block
+
+    params:
+      block -> the received block
+    """
     toBeRemoved = []
     for t in block.transactionList:
       for trans in self.transactions:
@@ -80,7 +101,15 @@ class Miner:
       self.transactions.remove(t)
 
   def solve_proof_of_work(self):
+    """ solves the proof of work problem
+    Starting with the random nonce, this thread will increment this
+    value and hash the block with the nonce and test to see if the
+    hash ends with the 'target' amount of zeros. If not, the nonce
+    is incremented and a new hash is produced
+
+    """
     log.info('Mining started...')
+    self.client.broadcast_info('Mining started')
     self.isMining = True
     hash = SHA256.new()
     
@@ -106,9 +135,19 @@ class Miner:
     return True
     
   def broadcast_info(self, info):
+    """ subscribe to mining info 
+
+    params:
+      info -> the message to send to the subscriber callback
+    """
     self.subscriber(info)
     
   def subscribe(self, subscriber):
+    """ adds a subscriber to this Miner
+
+    params:
+      subscriber -> A callback function that will receive the info message
+    """
     self.subscriber = subscriber
     
   def test_hash(self, hash, target):
@@ -123,14 +162,16 @@ class Miner:
       log.info(bin(int_hash))
     return lowBit == target
     
-  def verify_block_chain(self):
+  def verify_block_chain(self, debug=False):
     from db import DB
     d = DB()
+    log.info('Verifying blockchain...')
+    self.client.broadcast_info('Verifying blockchain')
     latest_block_hash = d.getLatestBlockHash()
     if not latest_block_hash:
       return True
     latest_block = d.getBlock(latest_block_hash)
-    return latest_block.verify()
+    return latest_block.verify(debug=debug)
 
 if __name__ == '__main__':
   import sys, time
