@@ -220,7 +220,7 @@ class TCPHandler(socketserver.BaseRequestHandler):
     elif message[:3] == Message.ADD:
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
-      port = self.request.recv(1024)
+      port = self.request.recv(4096)
       peer_list = pickle.loads(port)
       log.debug('peer list: %s', peer_list)
       client.update_peer_list(peer_list)
