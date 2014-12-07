@@ -28,6 +28,7 @@ class CoinBase(Transaction):
     i = Transaction.Input(CoinBase.COINBASE_REWARD, self.get_zero_bytes(), n, owner=self.owner)
     
     # 32 random bits for the coinbase field
+    random.seed()
     i.coinbase = random.getrandbits(32)
     self.add_input(i)
     out = Transaction.Output(CoinBase.COINBASE_REWARD, self.owner.publickey())

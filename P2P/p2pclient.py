@@ -142,9 +142,9 @@ class P2PClient(object):
     self.send_message(Message.NEW_TRANSACTION, t.pack(withSig=True))
     self.notify_subscribers(Message.NEW_TRANSACTION, t)
     
-  def broadcast_block(self, b):
-    
-    self.notify_subscribers(Message.NEW_BLOCK, b) # fix later
+  def broadcast_block(self, b, ignore=False):
+    if not ignore:
+      self.notify_subscribers(Message.NEW_BLOCK, b) # fix later
     self.send_message(Message.NEW_BLOCK, b.pack())
     
   def update_peer_list(self, peer_list):
@@ -185,14 +185,14 @@ class P2PClient(object):
 class TCPHandler(socketserver.BaseRequestHandler):
   """ Handles incoming tcp requests """
   def handle(self):
-    message = self.request.recv(15).strip()
+    message = self.request.recv(9).strip()
     log.debug('received message from a peer..., %s', message)
     log.info(message)
     if message == Message.NEW_TRANSACTION:
       from TransactionManager.transaction import Transaction
       trans = self.request.recv(2048)
       t = Transaction()
-      t.unpack(trans)
+      t.unpack(trans, withSig=True)
       if not t.verify():
         log.warn('Invalid transaction!')
         raise Exception('Transaction invalid!')
@@ -216,9 +216,10 @@ class TCPHandler(socketserver.BaseRequestHandler):
         log.info('Block has been verified')
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
-      client.queue_item_received(Message.NEW_BLOCK, b)
       client.notify_subscribers(Message.NEW_BLOCK, b)
-    elif message == Message.ADD:
+      client.queue_item_received(Message.NEW_BLOCK, b)
+      
+    elif message[:3] == Message.ADD:
       from P2P.client_manager import P2PClientManager
       client = P2PClientManager.getClient()
       port = self.request.recv(1024).strip()

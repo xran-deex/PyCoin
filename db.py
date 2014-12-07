@@ -23,9 +23,10 @@ class DB:
     if db_is_new:
       log.info('Creating schema')
       sql = '''create table if not exists TRANSACTIONS(
-      ID TEXT PRIMARY KEY,
+      ID TEXT,
       TRANS BLOB,
-      TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP
+      TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (ID, TIMESTAMP)
       );
       create table if not exists INPUT_OUTPUTS(
       ID TEXT,
@@ -37,7 +38,7 @@ class DB:
       N INTEGER,
       PACKED BLOB,
       TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (TRANS, N)
+      PRIMARY KEY (TRANS, N, TIMESTAMP)
       );
       create table if not exists BLOCKS(
       ID TEXT PRIMARY KEY,
@@ -54,8 +55,8 @@ class DB:
       
   def hasRanBefore(self):
     result = self.conn.execute('select RAN_BEFORE from FIRST WHERE ID = ?', [1])
-    result = result.fetchall()
-    return len(result) == 1
+    result = result.fetchone()
+    return result
     
   def setRanBefore(self):
     self.conn.execute('insert into FIRST (RAN_BEFORE, ID) values (?, ?)', [1, 1])
@@ -69,11 +70,14 @@ class DB:
       
     Return: (Transaction) the transaction object or None if not found
     """
-    trans = self.conn.execute('SELECT * FROM TRANSACTIONS WHERE ID = ?', [hash])
-    trans = trans.fetchall()
-    if len(trans) == 0:
-      return None
-    return Transaction().unpack(trans[0][1])
+    trans = self.conn.execute('SELECT TRANS FROM TRANSACTIONS WHERE ID = ?', [hash])
+    trans = trans.fetchone()
+    #print(trans)
+    #if len(trans) == 0:
+      #return None
+    t = Transaction()
+    t.unpack(trans[0], withSig=True)
+    return t
     
   def getAllTransactions(self):
     """ Retrieves every transaction stored in the database
@@ -95,9 +99,12 @@ class DB:
     Param:
       out: (Transaction.Output) the output to be inserted
     """
-    self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), trans.hash_transaction(), out.n, 0, out.pack(bytearray())])
+    try:
+      self.conn.execute('insert into INPUT_OUTPUTS (ID, VALUE, PUBLIC_KEY, TRANS, N, CONFIRMED, PACKED) values (?, ?, ?, ?, ?, ?, ?)', [out.hash_output(), out.value, out.pubKey.exportKey(), trans.hash_transaction(), out.n, 0, out.pack(bytearray())])
       
-    self.conn.commit()
+      self.conn.commit()
+    except:
+      log.warn('Output already in database')
     
   def insertTransaction(self, trans):
     """ Inserts a transaction into the database
@@ -105,12 +112,17 @@ class DB:
     Param:
       trans: (Transaction) the transaction to be inserted
     """
+    
     for o in trans.output:
       self.insertUnspentOutput(o, trans)
-    t = trans.pack()
+    t = trans.pack(withSig=True)
 
-    self.conn.execute('insert into TRANSACTIONS (ID, TRANS) values (?, ?)', [trans.hash_transaction(), t])
-    self.conn.commit()
+    try:
+      self.conn.execute('insert into TRANSACTIONS (ID, TRANS) values (?, ?)', [trans.hash_transaction(), t])
+      self.conn.commit()
+      print('inserted trans: ', trans.hash_transaction())
+    except:
+      log.warn('Transaction already in database')
     
   def removeUnspentOutput(self, out):
     if not out:

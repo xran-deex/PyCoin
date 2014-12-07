@@ -47,7 +47,7 @@ class PyCoin(Frame):
       c = CoinBase(owner=KeyStore.getPrivateKey())
       c.finish_transaction()
       self.db.setRanBefore()
-      messagebox.showinfo('Welcome', 'This is your first time running the app. You get to start off with 100 PyCoins!')
+      #messagebox.showinfo('Welcome', 'This is your first time running the app. You get to start off with 100 PyCoins!')
     #Get balance, Save to variable below
     self.coin_balance.set(str(KeyStore.get_balance()))
     print('PyCoin Address: ', SHA.new(KeyStore.getPublicKey().exportKey()).hexdigest())
@@ -58,7 +58,8 @@ class PyCoin(Frame):
     self.miner.subscribe(self.display_info)
     
   def display_info(self, info):
-    messagebox.showinfo("Info", info)
+    #messagebox.showinfo("Info", info)
+    pass
     
   def update_status(self, info):
     self.status.text = info

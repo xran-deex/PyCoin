@@ -3,6 +3,7 @@ import db, utils
 from globals import *
 from Crypto.Hash import SHA256
 from TransactionManager.transaction import Transaction
+from P2P.client_manager import P2PClientManager
 
 log = logging.getLogger(__name__)
 log.setLevel(LOG_LEVEL)
@@ -24,10 +25,15 @@ class Block:
     self.transactionList = []
     self.target = 16
     self.hash = None
+    self.client = P2PClientManager.getClient()
     
   def add_transaction(self, trans):
     if not isinstance(trans, Transaction):
       raise Exception('Not a Transaction object!')
+    for t in self.transactionList:
+      if t.hash_transaction() == trans.hash_transaction():
+        return
+    print('adding trans to block: ', trans.hash_transaction())
     self.transactionList.append(trans)
     
   def computeMerkleRoot(self):
@@ -36,15 +42,20 @@ class Block:
   def getPreviousBlockHash(self):
     return self.db.getLatestBlock()[0]
   
-  def pack(self):
+  def pack(self, withoutReward=False):
     """ Serializes the block into a byte array """
     b = bytearray()
     b.extend(self.HashPrevBlock) #32
     b.extend(struct.pack('I', self.nonce)) #4
     b.extend(struct.pack('B', self.target)) #1
-    b.extend(struct.pack('B', len(self.transactionList))) #1
-    for t in self.transactionList:
-      b.extend(t.hash_transaction()) # 32
+    if withoutReward:
+      num = len(self.transactionList) - 1
+    else:
+      num = len(self.transactionList)
+    b.extend(struct.pack('B', num)) #1
+    for i in range(num):
+      #if self.transactionList[i]:
+      b.extend(self.transactionList[i].hash_transaction()) # 32
     return b
   
   def unpack(self, buf):
@@ -54,28 +65,28 @@ class Block:
     offset += 32
     self.nonce = struct.unpack_from('I', buf, offset)[0]
     offset += 4
+    self.target = struct.unpack_from('B', buf, offset)[0]
+    offset += 1
     num_trans = struct.unpack_from('B', buf, offset)[0]
     offset += 1
     for i in range(num_trans):
-      t = Transaction()
       h = buf[offset:offset+32]
-      t.hash = SHA256.new(h)
-      trans = self.db.getTransactionByHash(t.hash.digest())
+      print('unpacking: ', h)
+      trans = self.db.getTransactionByHash(h)
       self.transactionList.append(trans)
       offset += 32
+    print('block hash: ', self.hash_block(hex=True, withoutReward=False))
+    print('block nonce: ', self.nonce)
     log.info('Block unpacked')
     
   def store_block(self):
     self.db.insertBlock(self)
     
-  def hash_block(self, hex=False):
-    if not self.hash:
-      b = bytearray()
-      b.extend(self.HashPrevBlock) #32
-      b.extend(struct.pack('I', self.nonce)) #4
-      b.extend(struct.pack('B', self.target)) #1
-      b.extend(struct.pack('B', len(self.transactionList))) #1
-      self.hash = SHA256.new(b)
+  def hash_block(self, hex=False, withoutReward=False):
+    # if not self.hash:
+    b = bytearray()
+    b.extend(self.pack(withoutReward=withoutReward))
+    self.hash = SHA256.new(b)
     if hex:
       return self.hash.hexdigest()
     return self.hash.digest()
@@ -83,20 +94,39 @@ class Block:
   def finish_block(self):
     v = self.verify()
     if v:
+      self.client.broadcast_block(self, ignore=True)
       log.debug('Block verified')
       self.store_block()
     
   def verify(self):
+    print('finishing block')
     verified = False
     for t in self.transactionList:
       if not t.verify():
+        log.warn('Invalid transaction in block')
         return False
+    if not self.test_hash(self.hash_block(withoutReward=False), self.target):
+      log.warn('Block has doesn\'t match target!')
+      return False
     prevBlock = self.db.getBlock(self.HashPrevBlock)
     if prevBlock:
       log.debug('Verifying previous block')
       return prevBlock.verify()
     return True
     
+  def test_hash(self, hash, target):
+    """ check if the last 'target' bits are zeros """
+    int_hash = int(struct.unpack_from('I', hash[-4:])[0])
+    print(bin(int_hash))
+    low = (int_hash & -int_hash)
+    lowBit = -1
+    while (low):
+      low >>= 1
+      lowBit += 1
+    print(lowBit)
+    if lowBit == target:
+      log.info(bin(int_hash))
+    return lowBit == target
   
 if __name__ == '__main__':
   import sys, time

@@ -5,7 +5,7 @@ class Message:
   ADD = b'ADD'
   
   # sent when broadcasting a new transaction
-  NEW_TRANSACTION = b'NEW_TRANSACTION'
+  NEW_TRANSACTION = b'NEW_TRANS'
   
   # sent to end a connection
   QUIT = b'QUIT'

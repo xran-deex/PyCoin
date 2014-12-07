@@ -110,12 +110,13 @@ class Transaction:
   #   print(totalIn, totalOut, totalIn-totalOut)
   #   self.add_output(Transaction.Output(totalIn-totalOut, self.owner.publickey()))
     
-  def finish_transaction(self):
+  def finish_transaction(self, broadcast=True):
 
     self.sign_inputs()
     self.add_hash_to_outputs()
     self.store_transaction()
-    self.broadcast()
+    if broadcast:
+      self.broadcast()
     self.verify()
     
   def add_hash_to_outputs(self):
@@ -131,10 +132,11 @@ class Transaction:
     db = DB()
     db.insertTransaction(self)
     
-  def pack(self, withSig=False):
+  def pack(self, withSig=False, withHash=False):
     
     buffer = bytearray()
-    buffer.extend(self.hash_transaction())
+    if withHash:
+      buffer.extend(self.hash_transaction())
     buffer.extend(struct.pack('B', len(self.input)))
     self.pack_inputs(buffer, withSig)
     buffer.extend(struct.pack('B', len(self.output)))
@@ -151,19 +153,22 @@ class Transaction:
       o.pack(buf)
     return buf
     
-  def unpack(self, buf):
+  def unpack(self, buf, withSig=False):
     """ unpacks a Transaction from a buffer of bytes
     
     """
-    self.hash = SHA256.new(buf[:32])
-    offset = 32
+    #self.hash = SHA256.new(buf[:32])
+    #offset = 32
+    offset = 0
     num_in = struct.unpack_from('B', buf, offset)[0]
     offset += 1
     self.input = []
     for i in range(num_in):
-      inp = Transaction.Input.unpack(buf, offset)
+      inp = Transaction.Input.unpack(buf, offset, withSig=withSig)
       self.input.append(inp)
       offset += Transaction.Input.PACKED_SIZE
+      if not withSig:
+        offset -= 256
       if hasattr(inp, 'coinbase'):
         offset += 4
       
@@ -224,7 +229,7 @@ class Transaction:
     PACKED_SIZE = 290
     
     @staticmethod
-    def unpack(buf, offset):
+    def unpack(buf, offset, withSig=False):
       coinbase = False
       value = struct.unpack_from('B', buf, offset)[0]
       offset += 1
@@ -234,9 +239,11 @@ class Transaction:
       offset += 32
       n = struct.unpack_from('B', buf, offset)[0]
       offset += 1
-      signature = buf[offset:offset+256]
       i = Transaction.Input(value, prev, n)
-      i.signature = signature
+      if withSig:
+        signature = buf[offset:offset+256]
+        i.signature = signature
+        offset += 256
       i.n = n
       if coinbase:
         i.coinbase = struct.unpack_from('I', buf, offset)[0]
@@ -330,10 +337,10 @@ class Transaction:
         return hash.digest()
         
     def pack(self, buf):
-      buf.extend(struct.pack('I', self.value))
+      buf.extend(struct.pack('I', self.value)) #4
       #buf.extend(struct.pack('I', self.timestamp))
-      buf.extend(struct.pack('B', self.n))
-      buf.extend(self.pubKey.exportKey())
+      buf.extend(struct.pack('B', self.n)) #1
+      buf.extend(self.pubKey.exportKey()) #450
       return buf
       
     @staticmethod
@@ -349,7 +356,6 @@ class Transaction:
       pubKey = RSA.importKey(key)
       o = Transaction.Output(value, pubKey)
       o.n = n
-      #i.transaction = transaction
       return o
       
 if __name__ == '__main__':

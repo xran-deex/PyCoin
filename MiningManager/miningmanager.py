@@ -22,6 +22,7 @@ class Miner:
     self.hashnum = SHA256.new()
     self.transactions = []
     self.start_over = False
+    self.isMining = False
     self.b = Block()
     self.client = P2PClientManager.getClient()
     self.client.subscribe(Message.NEW_BLOCK, self.handle_new_block)
@@ -33,36 +34,56 @@ class Miner:
       raise Exception('Not a Transaction object!')
     self.transactions.append(trans)
     log.debug('Received new transaction')
-    if len(self.transactions) > 5:
+    if len(self.transactions) > 5 and not self.isMining:
       self.mining_thread = threading.Thread(target=self.solve_on_thread)
       self.mining_thread.start()
         
   def solve_on_thread(self):
+    self.coinbase = CoinBase()
+    self.transactions.append(self.coinbase)
     result = self.solve_proof_of_work()
+    if self.start_over:
+        self.start_over = False
+        print('mining stopped')
+        self.isMining = False
+        return
     if result:
       self.transactions = []
       log.info('Block solution found!, %d', self.b.nonce)
+      print('block hash: ', self.b.hash_block(hex=True, withoutReward=False))
       self.broadcast_info('Block solution found!')
-      c = CoinBase()
-      self.b.add_transaction(c)
-      self.client.broadcast_block(self.b)
+      if self.start_over:
+        self.start_over = False
+        self.isMining = False
+        print('mining stopped')
+        return
+      
+      self.coinbase.finish_transaction()
+      self.b.finish_block()
+      self.isMining = False
+      self.b = Block()
       
   def handle_new_block(self, block):
+    print('received new block')
     self.start_over = True
+    #if self.isMining:
+    self.b = Block()
     self.remove_queue_transactions(block)
+    self.isMining = False
     
   def remove_queue_transactions(self, block):
     toBeRemoved = []
     for t in block.transactionList:
       for trans in self.transactions:
-        if t.hash == trans.hash:
+        if t.hash_transaction() == trans.hash_transaction():
           toBeRemoved.append(trans)
     for t in toBeRemoved:
+      print('remove form queue: ', t.hash_transaction())
       self.transactions.remove(t)
-    print('Transactions should be empty', self.transactions)
 
   def solve_proof_of_work(self):
     log.info('Mining started...')
+    self.isMining = True
     hash = SHA256.new()
     
     #self.b.computeMerkleRoot()
@@ -73,7 +94,7 @@ class Miner:
     target = bytes(self.b.target)
     hash.update(self.b.pack())
     digest = hash.digest()
-    #while digest[:self.b.target] != target:
+
     while not self.test_hash(digest, self.b.target):
       hash = SHA256.new()
       # update the nonce
