@@ -1,0 +1,33 @@
+PyCoin Readme
+
+Dependencies:
+	Python 3
+	Tkinter (for Python 3)  (sudo apt-get install python3-tk)
+	PyCrypto  (sudo pip install pycrypto)  or install from https://www.dlitz.net/software/pycrypto
+	sqlite3  (sudo apt-get install sqlite3)
+
+To run:
+	1. Start the server (once)
+		navigate to the PyCoin folder and run
+		sh ./pycoin_server.sh
+
+		Press Ctrl-c to stop the server
+
+	2. Start a client (in a separate shell per client)
+		navigate to the PyCoin folder and run
+		sh ./pycoin.sh
+
+		Press Ctrl-q to quit
+
+Make sure the server is running before any clients are started
+
+While running:
+	1. Determine your public PyCoin address by clicking the menu item.
+	2. Give this address to another client that you want to accept payment from
+	3. Paste another client's address into your client to give PyCoins to them.
+	4. Enter an amount into the 'BitCoin amount' area.
+	5. Press 'Send BitCoins'
+
+	Optional - 
+		1. Verify the block chain by clicking its menu item. 
+		2. View output in console
