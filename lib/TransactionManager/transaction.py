@@ -16,10 +16,10 @@ from P2P.client_manager import *
 class Transaction:
   ''' Base "regular" transaction '''
   nVersion = 1
-  
+
   def __init__(self, owner=None, callback=None):
     """ Initializes a Transaction object
-    
+
     Param: owner -> The 'owner' of this transaction. (Initiator)
            callback -> a callback function to get called when the transaction is verified
     """
@@ -32,12 +32,12 @@ class Transaction:
     else:
       self.owner = owner
     self.callback = callback
-    
+
   def add_input(self, inp):
     """ since inputs are really just outputs, this will be slowly converted to just accepting an input value
     and it finds previous output values from past transactions."""
     target_val = inp.value
-    
+
     # find all previous unspent outputs....
     from db import DB
     db = DB()
@@ -46,7 +46,7 @@ class Transaction:
     if len(outputs) > 2:
       self.consolidateOutputs(outputs)
       outputs = db.getUnspentOutputs(self.owner.publickey())
-    
+
     # find enough outputs to total the requested input...
     val = 0
     for o in outputs:
@@ -82,28 +82,28 @@ class Transaction:
     output.n = 1
     t.output.append(output)
     t.finish_transaction()
-    
+
   def add_output(self, output):
     """ Adds an output to this transaction
-    
+
     Args:
       output: an Transaction.Output object that will be added to this transaction
-      
+
     Returns:
       Self, for use as a factory type builder.
     """
     log.debug('creating output... %d, paying to %s', output.value, output.pubKey.exportKey())
     self.output.append(output)
     output.n = len(self.output)
-    
+
     # find (and add) the necessary inputs
     self.add_input(output)
-    
+
     return self
-    
+
   def broadcast(self):
     """ Broadcast this transaction to peers
-    
+
     Broadcast this transaction in packed binary format to the peer network
     """
     try:
@@ -112,7 +112,7 @@ class Transaction:
       p2pclient.broadcast_transaction(self)
     except Exception as e:
       log.warning(e)
-    
+
   def hash_transaction(self, hex=False):
     """ Hashes the transaction in raw format """
     if self.hash:
@@ -124,9 +124,9 @@ class Transaction:
     if hex:
       return self.hash.hexdigest()
     return self.hash.digest()
-    
+
   def finish_transaction(self, broadcast=True):
-    """ finishes a transaction. signs inputs, adds hash to outputs, 
+    """ finishes a transaction. signs inputs, adds hash to outputs,
     stores the transaction, broadcasts this transaction, and verifies the transaction """
     self.sign_inputs()
     self.add_hash_to_outputs()
@@ -134,23 +134,23 @@ class Transaction:
     if broadcast:
       self.broadcast()
     self.verify()
-    
+
   def add_hash_to_outputs(self):
     """ adds the hash of this transaction to all the output objects """
     for o in self.output:
       o.transaction = self.hash_transaction()
-    
+
   def sign_inputs(self):
     """ signs all the input objects """
     for i in self.input:
       i.apply_signature(i.prev)
-    
+
   def store_transaction(self):
     """ adds this transaction to the database """
     from db import DB
     db = DB()
     db.insertTransaction(self)
-    
+
   def pack(self, withSig=False, withHash=False):
     """ serializes this transaction object """
     buffer = bytearray()
@@ -160,23 +160,23 @@ class Transaction:
     self.pack_inputs(buffer, withSig)
     buffer.extend(struct.pack('B', len(self.output)))
     self.pack_outputs(buffer)
-    return buffer
-    
+    return bytes(buffer)
+
   def pack_inputs(self, buf, withSig):
     """ serializes all the input objects """
     for inp in self.input:
       inp.pack(buf, withSig=withSig)
     return buf
-    
+
   def pack_outputs(self, buf):
     """ serializes all the output objects """
     for o in self.output:
       o.pack(buf)
     return buf
-    
+
   def unpack(self, buf, withSig=False):
     """ unpacks a Transaction from a buffer of bytes
-    
+
     """
     offset = 0
     num_in = struct.unpack_from('B', buf, offset)[0]
@@ -190,24 +190,24 @@ class Transaction:
         offset -= 256
       if hasattr(inp, 'coinbase'):
         offset += 4
-      
+
     num_out = struct.unpack_from('B', buf, offset)[0]
     offset += 1
-    
+
     self.output = []
     for i in range(num_out):
       out = Transaction.Output.unpack(buf, offset)
       self.output.append(out)
       offset += Transaction.Output.PACKED_SIZE
-    
-    
+
+
   def __repr__(self):
     return 'Transaction:' +\
     '\nvin#: ' + str(len(self.input)) +\
     '\nvin[]: ' + str(self.input) +\
     '\nvout#: ' + str(len(self.output)) +\
     '\nvout[]: ' + str(self.output)
-    
+
   def verify(self, debug=False):
     """ verifies all the inputs and outputs of this transaction """
     # find all previous unspent outputs....
@@ -245,26 +245,26 @@ class Transaction:
       log.info('\tReceiver: %s', SHA256.new(o.pubKey.exportKey()).hexdigest())
       log.info('\tAmount: %d', o.value)
       log.info('\t=====================')
-    
+
   def check_sig(self, signature, pubKey, trans):
     """ checks that the signature was signed by the owner of the public key """
     message = SHA256.new(trans)
     verifier = PKCS1_v1_5.new(pubKey)
     verified = verifier.verify(message, signature)
     return verified
-    
+
   # inner class representing inputs/outputs to a transaction
   class Input:
     """ defines an input object in a transaction
-    
+
     Attributes:
       value: the bitcoin value of this input in a transaction
       signature: the digital signature of the entity spending bitcoins
       n: the nth input in a transaction
     """
-    
+
     PACKED_SIZE = 290
-    
+
     @staticmethod
     def unpack(buf, offset, withSig=False):
       """ deserializes the input object """
@@ -286,7 +286,7 @@ class Transaction:
       if coinbase:
         i.coinbase = struct.unpack_from('I', buf, offset)[0]
       return i
-    
+
     def __init__(self, value, prev, n, owner=None, output=None):
       # sanity checks
       if len(prev) != 32:
@@ -300,24 +300,24 @@ class Transaction:
       else:
         self.owner = owner
       self.output=output
-      
+
     def __repr__(self):
       return 'Input:' +\
       '\nvalue: ' + str(self.value) +\
       '\nprev trans: ' + str(self.prev) +\
       '\nn: ' + str(self.n) +\
       '\nsignature: ' + str(self.signature)
-      
+
     def apply_signature(self, trans_hash):
       """ Signs a hash of the transaction
-      
+
       Param: trans_hash - the hash of the current transaction
       """
       # sign the input
       message = SHA256.new(trans_hash)
       signer = PKCS1_v1_5.new(self.owner)
       self.signature = signer.sign(message)
-      
+
     def pack(self, buf, withSig=False):
       """ serializes the input object """
       buf.extend(struct.pack('B', self.value))
@@ -328,19 +328,19 @@ class Transaction:
       if hasattr(self, 'coinbase'):
         buf.extend(struct.pack('I', self.coinbase)) #4
       return buf
-      
+
   class Output:
     """ defines an output object in a transaction
-    
+
     Attributes:
       value: the bitcoin value of this output to be transfer to another user
       pubKey: the public key of the recipient of the bitcoins
       n: the nth output in a transaction
     """
-    
+
     #_n = 0   # the output count
     PACKED_SIZE = 455
-    
+
     def __init__(self, value, pubKey):
       self.value = value
       self.pubKey = pubKey
@@ -350,14 +350,14 @@ class Transaction:
       self.timestamp = int(time.time())  # not sure if this is needed, but this will make each hash unique
       self.transaction = None
       self.n = -1
-      
+
     def __repr__(self):
       return 'Output:' +\
       '\nvalue: ' + str(self.value) +\
       '\npublic key: ' + str(self.pubKey.exportKey()) +\
       '\ntrans: ' + str(self.transaction) +\
       '\nn: ' + str(self.n)
-        
+
     def hash_key(self, hex=True):
       hash = SHA256.new()
       hash.update(self.pubKey.exportKey())
@@ -365,7 +365,7 @@ class Transaction:
         return hash.hexdigest()
       else:
         return hash.digest()
-        
+
     def hash_output(self, hex=True):
       """ hashes the output """
       bytes = self.pack(bytearray())
@@ -375,14 +375,14 @@ class Transaction:
         return hash.hexdigest()
       else:
         return hash.digest()
-        
+
     def pack(self, buf):
       """ serializes the output object """
       buf.extend(struct.pack('I', self.value)) #4
       buf.extend(struct.pack('B', self.n)) #1
       buf.extend(self.pubKey.exportKey()) #450
       return buf
-      
+
     @staticmethod
     def unpack(buf, offset=0):
       """ deserializes the output object """
@@ -395,7 +395,7 @@ class Transaction:
       o = Transaction.Output(value, pubKey)
       o.n = n
       return o
-      
+
 if __name__ == '__main__':
   import sys, time
   from keystore import KeyStore
